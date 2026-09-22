@@ -1,0 +1,1981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Woofie's SW Portland — Admin Tools</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.12.0/maplibre-gl.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.12.0/maplibre-gl.min.js"></script>
+<style>
+  :root {
+    --brand: #3B6EA5;
+    --brand-light: #E4EFF9;
+    --accent: #5B84AE;
+    --accent-light: #EDF3F8;
+    --border: #CBD9E6;
+    --text-primary: #24303B;
+    --text-secondary: #66788A;
+    --surface: #FFFFFF;
+    --page: #F0F5FA;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--page); color: var(--text-primary); font-size: 14px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 20px 32px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0; color: var(--brand); }
+  .sub { font-size: 12px; color: var(--text-secondary); margin: 2px 0 0; }
+  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 14px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .map-panel { padding: 10px; }
+  #map { width: 100%; height: 480px; border-radius: 6px; border: 1px solid var(--border); background: #eee; }
+  .form-row { display: flex; gap: 6px; margin-bottom: 8px; }
+  input[type="text"] { flex: 1; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+  input[type="text"]:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-light); }
+  button { border: none; border-radius: 6px; padding: 7px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: var(--brand); color: white; }
+  .btn-primary:hover { background: #2E5786; }
+  .btn-secondary { background: var(--page); color: var(--text-primary); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: #e3ecf3; }
+  #status { font-size: 12px; min-height: 16px; margin-bottom: 4px; }
+  #status.ok { color: var(--brand); }
+  #status.warn { color: #a3352e; }
+  #status.err { color: #a3352e; }
+  #loadNote { font-size: 11px; color: var(--text-secondary); margin-top: 6px; display:none; }
+  h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--text-primary); }
+  .zip-list { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; }
+  .zip-list li { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  .zip-list li:last-child { border-bottom: none; }
+  .zip-tag { font-weight: 600; color: var(--brand); cursor: pointer; }
+  .remove-btn { background: none; border: none; color: var(--text-secondary); font-size: 11px; cursor: pointer; padding: 2px 6px; }
+  .remove-btn:hover { color: #a3352e; }
+  .empty-note { font-size: 12px; color: var(--text-secondary); padding: 6px 0; }
+  .legend { display: flex; gap: 12px; font-size: 11px; color: var(--text-secondary); margin-top: 8px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .dot.unserviced { background: white; border: 1.5px solid #9DB3C7; }
+  .note { font-size: 11.5px; color: var(--text-secondary); margin-top: 8px; line-height: 1.45; }
+  .popup-add-btn { margin-top: 6px; }
+
+  /* ===== Admin Assistant (MPS / PSDW template generator) ===== */
+  .subtabbar { display: flex; gap: 8px; margin-bottom: 12px; }
+  .field-group { margin-bottom: 10px; }
+  .field-label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 3px; }
+  .field-row { display: flex; gap: 8px; }
+  .field-row > div { flex: 1; }
+  select, textarea {
+    width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; font-family: inherit; background: var(--surface); color: var(--text-primary);
+  }
+  select:focus, textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-light); }
+  .zip-status-tag {
+    display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+    margin-left: 6px; vertical-align: middle;
+  }
+  .zip-status-tag.Bookable { background: var(--brand-light); color: var(--brand); }
+  .zip-status-tag.Jump-Ball { background: #FFF2CC; color: #8A6D1D; }
+  .zip-status-tag.Hard-Rule { background: #FBE0DE; color: #a3352e; }
+  .zip-status-tag.Do-Not-Serve { background: #FBE0DE; color: #a3352e; }
+  .zip-status-tag.Special-Routing { background: #E6E6FA; color: #4B3F8F; }
+  .zip-status-tag.Outside-Service-Area { background: #E9F1FA; color: #4A7CA8; }
+  .zip-status-tag.Unknown { background: #E9EEF3; color: var(--text-secondary); }
+  .output-box {
+    background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+    font-size: 12.5px; white-space: pre-wrap; min-height: 50px; margin-top: 6px; line-height: 1.45;
+  }
+  .output-actions { display: flex; gap: 6px; margin-top: 6px; }
+  .sample-flag { font-size: 10.5px; color: var(--accent); font-weight: 700; }
+  .addon-remove-btn {
+    flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; border: none;
+    background: var(--text-primary); color: #fff; font-size: 11px; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .addon-remove-btn:hover { background: #a3352e; }
+  .assistant-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 900px) { .assistant-grid { grid-template-columns: 1fr; } }
+
+  .zip-detail { font-size: 11.5px; color: var(--text-secondary); margin-top: 3px; }
+  .hard-rule-banner {
+    background: #FBE0DE; border: 1.5px solid #E4A9A4; border-radius: 6px;
+    padding: 9px 10px; margin-bottom: 10px; font-size: 12px; color: #7a2620;
+  }
+  .hard-rule-banner strong { color: #a3352e; }
+  .warning-banner {
+    background: #FFF2CC; border: 1.5px solid #E8D48A; border-radius: 6px;
+    padding: 8px 10px; margin-bottom: 10px; font-size: 12px; color: #6b551a; font-weight: 600;
+  }
+
+  /* ===== Template Manager ===== */
+  .tpl-editor textarea { min-height: 150px; font-family: ui-monospace, monospace; font-size: 12.5px; }
+  .tpl-vars { font-size: 11px; color: var(--text-secondary); margin-top: 6px; line-height: 1.55; }
+  .tpl-vars code { background: var(--page); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Woofie's of SW Portland — Admin Tools</h1>
+      <p class="sub">ZIP code status lookup and the MPS/PSDW template assistant.</p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="panel map-panel">
+      <div id="map"></div>
+      <div id="loadNote">Map tiles didn't load — this page needs an active internet connection and works best opened directly in a browser (Chrome, Safari, Firefox) rather than an in-app preview.</div>
+
+      <div class="legend">
+        <span><i class="dot" style="background:#2E7D46;"></i> Bookable</span>
+        <span><i class="dot" style="background:#C9971C;"></i> Jump-Ball</span>
+        <span><i class="dot" style="background:#C0392B;"></i> Hard Rule</span>
+        <span><i class="dot unserviced"></i> Outside service area</span>
+      </div>
+      <p class="note">Real OpenStreetMap data — actual roads, terrain, and city geography. Map data © OpenStreetMap contributors.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Check a ZIP code</h2>
+      <div class="form-row">
+        <input type="text" id="zipInput" placeholder="e.g. 97219" maxlength="5" inputmode="numeric">
+      </div>
+      <div class="form-row">
+        <button class="btn-primary" id="checkBtn" style="flex:1;">Check Status</button>
+        <button class="btn-secondary" id="clearZipBtn" style="flex:1;">Clear</button>
+      </div>
+      <div id="status"></div>
+      <div id="zipStatusResult"></div>
+    </div>
+  </div>
+
+  <div id="assistantSection" style="margin-top:16px;">
+    <div class="subtabbar">
+      <select id="assistantModeSelect" onchange="switchAssistantMode(this.value)" style="max-width:340px;">
+        <option value="MPS">Mobile Pet Spa</option>
+        <option value="PSDW">Pet Sitting &amp; Dog Walking</option>
+      </select>
+    </div>
+
+    <div class="assistant-grid">
+      <!-- LEFT: input form -->
+      <div class="panel" id="assistantFormPanel">
+        <!-- ===================== MPS FORM ===================== -->
+        <div id="mpsForm">
+          <h2>Client &amp; Request Details</h2>
+          <p class="note" style="margin-top:0; margin-bottom:12px;">Scheduling Golden Rule: allow ~2 hrs for first-time clients (~1.5 hrs may work for smaller dogs), plus ~30 min drive time on each side.</p>
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">ZIP code</label>
+              <input type="text" id="mpsZip" placeholder="e.g. 97219" maxlength="5" inputmode="numeric" oninput="onMpsZipChange()">
+              <div id="mpsZipStatusRow" style="margin-top:6px;"></div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Breed <span class="sample-flag">(type to search Master Pricing)</span></label>
+              <input type="text" id="mpsBreed" list="breedOptions" placeholder="e.g. Goldendoodle" oninput="onMpsBreedChange()">
+              <datalist id="breedOptions"></datalist>
+              <div id="mpsBreedPriceInfo" class="zip-detail"></div>
+            </div>
+          </div>
+          <div id="hardRuleRow"></div>
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">Client name</label>
+              <input type="text" id="mpsClientName" placeholder="e.g. Jamie Rivera">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Client type</label>
+              <select id="mpsClientType">
+                <option value="New">New client</option>
+                <option value="Existing">Existing client</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Pet name</label>
+            <input type="text" id="mpsPetName" placeholder="e.g. Stella">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Account setup info on file</label>
+            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center; font-size:13px; padding:6px 0;">
+              <label style="display:flex; align-items:center; gap:5px; font-weight:700; cursor:pointer;">
+                <input type="checkbox" id="mpsInfoAll" onchange="onMpsInfoAllChange()" style="width:auto;"> All
+              </label>
+              <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                <input type="checkbox" id="mpsHasAddress" onchange="onMpsInfoItemChange()" style="width:auto;"> Full address
+              </label>
+              <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                <input type="checkbox" id="mpsHasPhone" onchange="onMpsInfoItemChange()" style="width:auto;"> Phone
+              </label>
+              <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                <input type="checkbox" id="mpsHasEmail" onchange="onMpsInfoItemChange()" style="width:auto;"> Email
+              </label>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">Luxury Bath price</label>
+              <input type="text" id="mpsLuxuryPrice" placeholder="e.g. $99">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Full Groom price</label>
+              <input type="text" id="mpsFullGroomPrice" placeholder="e.g. $150">
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Add-ons <span class="sample-flag">(optional — up to 3)</span></label>
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+              <select id="mpsAddon1" onchange="onAddonChange()" style="flex:1;">
+              <option value="">— None —</option>
+              <option value="3-Step Deshed Treatment — $40.00">3-Step Deshed Treatment — $40.00</option>
+              <option value="Anal Glands W/ Groom — $15.00">Anal Glands W/ Groom — $15.00</option>
+              <option value="Anal Glands W/out Groom — $30.00">Anal Glands W/out Groom — $30.00</option>
+              <option value="Blueberry Facial — $8.00">Blueberry Facial — $8.00</option>
+              <option value="Event Only: Brush 'n Go 30 minutes or less — $50.00">Event Only: Brush 'n Go 30 minutes or less — $50.00</option>
+              <option value="Event Only: Brush 'n Go over 30 minutes — $75.00">Event Only: Brush 'n Go over 30 minutes — $75.00</option>
+              <option value="Event Only: Wash 'n Go 50 lbs and under — $40.00">Event Only: Wash 'n Go 50 lbs and under — $40.00</option>
+              <option value="Event Only: Wash 'n Go over 50 lbs — $60.00">Event Only: Wash 'n Go over 50 lbs — $60.00</option>
+              <option value="Bunny Spot Shave — $12.00">Bunny Spot Shave — $12.00</option>
+              <option value="Cat Spot Shave — $15.00">Cat Spot Shave — $15.00</option>
+              <option value="Dematting 15 mins — $35.00">Dematting 15 mins — $35.00</option>
+              <option value="Dematting 30 mins — $55.00">Dematting 30 mins — $55.00</option>
+              <option value="Deskunk Treatment — $65.00">Deskunk Treatment — $65.00</option>
+              <option value="Deskunk Treatment XL — $75.00">Deskunk Treatment XL — $75.00</option>
+              <option value="Dog Spot Shave — $12.00">Dog Spot Shave — $12.00</option>
+              <option value="Ear Cleaning — $15.00">Ear Cleaning — $15.00</option>
+              <option value="Extra Brushing 15 mins — $25.00">Extra Brushing 15 mins — $25.00</option>
+              <option value="Face Trim — $15.00">Face Trim — $15.00</option>
+              <option value="Face wash — $12.00">Face wash — $12.00</option>
+              <option value="Flea & Tick Treatment — $40.00">Flea &amp; Tick Treatment — $40.00</option>
+              <option value="Flea & Tick Treatment XL — $50.00">Flea &amp; Tick Treatment XL — $50.00</option>
+              <option value="HANDLING FEE OVER 80 LBS — $50.00">HANDLING FEE OVER 80 LBS — $50.00</option>
+              <option value="Happy Barkday — $12.00">Happy Barkday — $12.00</option>
+              <option value="Healthy Breath Combo — $15.00">Healthy Breath Combo — $15.00</option>
+              <option value="Hugs & Kisses Bundle — $30.00">Hugs &amp; Kisses Bundle — $30.00</option>
+              <option value="Kitty Pedi — $50.00">Kitty Pedi — $50.00</option>
+              <option value="Mani/Pedi (for additional Dogs) — $35.00">Mani/Pedi (for additional Dogs) — $35.00</option>
+              <option value="Monthly Promo — $16.00">Monthly Promo — $16.00</option>
+              <option value="Non-Woof Pack Bandana — $5.00">Non-Woof Pack Bandana — $5.00</option>
+              <option value="Non-Woof Pack Bow — $5.00">Non-Woof Pack Bow — $5.00</option>
+              <option value="Paw Pad Treatment — $15.00">Paw Pad Treatment — $15.00</option>
+              <option value="Paw Pad Trimming — $15.00">Paw Pad Trimming — $15.00</option>
+              <option value="Sanitary Trim with no Groom — $80.00">Sanitary Trim with no Groom — $80.00</option>
+              <option value="Sanitary Trim as add-on — $20.00">Sanitary Trim as add-on — $20.00</option>
+              <option value="Shea Butter Conditioning Spray — $8.00">Shea Butter Conditioning Spray — $8.00</option>
+              <option value="Shea Butter Relief Massage — $15.00">Shea Butter Relief Massage — $15.00</option>
+              <option value="Special Handling Fee $10 — $10.00">Special Handling Fee $10 — $10.00</option>
+              <option value="Special Handling Fee $25 — $25.00">Special Handling Fee $25 — $25.00</option>
+              <option value="Sugar Cookie Spritz — $8.00">Sugar Cookie Spritz — $8.00</option>
+              <option value="Tick Removal — $15.00">Tick Removal — $15.00</option>
+              <option value="Woof Pack Bandana — $0.00">Woof Pack Bandana — $0.00</option>
+              <option value="Woof Pack Bow — $0.00">Woof Pack Bow — $0.00</option>
+              <option value="WP Holiday Bandana Only — $5.00">WP Holiday Bandana Only — $5.00</option>
+              <option value="Standard Dog Mani/Pedi — $50.00">Standard Dog Mani/Pedi — $50.00</option>
+              </select>
+              <button type="button" class="addon-remove-btn" onclick="removeAddonRow(1)" title="Clear this add-on">×</button>
+            </div>
+            <div id="mpsAddonRow2" style="display:none; margin-bottom:6px;"></div>
+            <div id="mpsAddonRow3" style="display:none; margin-bottom:6px;"></div>
+            <button type="button" class="btn-secondary" id="mpsAddAddonBtn" onclick="addAnotherAddon()" style="font-size:12px; padding:6px 10px;">+ Add another add-on</button>
+          </div>
+          <div class="field-group" id="mpsBookingRow" style="display:none; background:var(--brand-light); border-radius:8px; padding:10px 12px;">
+            <label style="display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; color:var(--brand); cursor:pointer;">
+              <input type="checkbox" id="mpsBookingRequested" onchange="updateBookingVisibility()" style="width:auto;">
+              Client would like to reserve an appointment slot
+            </label>
+            <p style="font-size:12px; color:var(--text-secondary); margin:6px 0 0;">When checked, the customer message will ask only for whichever of the 5 setup fields are still blank below.</p>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Admin name (for signature)</label>
+            <input type="text" id="mpsAdminName" placeholder="e.g. Christian">
+          </div>
+
+          <div class="field-group" style="margin-top:12px;">
+            <label class="field-label">Message template to use</label>
+            <select id="mpsTemplateSelect"></select>
+          </div>
+
+          <div class="output-actions" style="margin-top:6px;">
+            <button class="btn-primary" onclick="generateMpsCustomerMessage()">Generate Customer Message</button>
+            <button class="btn-secondary" onclick="clearMpsForm()">Clear</button>
+          </div>
+          <div class="output-actions" id="mpsJumpBallRow" style="display:none;">
+            <button class="btn-secondary" onclick="generateJumpBallForward()">Generate Jump-Ball Forward to Rosy</button>
+          </div>
+          <div class="output-actions" id="mpsHardRuleActionRow" style="display:none;">
+            <button class="btn-secondary" id="hardRuleActionBtn" onclick="generateHardRuleReferral()">Generate Referral Note (SE Portland-Clackamas)</button>
+          </div>
+        </div>
+
+        <!-- ===================== PSDW FORM ===================== -->
+        <div id="psdwForm" style="display:none;">
+          <h2>Client &amp; Request Details</h2>
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">Client name</label>
+              <input type="text" id="psdwClientName" placeholder="e.g. Jamie Rivera">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Client type</label>
+              <select id="psdwClientType">
+                <option value="New">New client</option>
+                <option value="Existing">Existing client</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Pet name(s)</label>
+            <input type="text" id="psdwPetName" placeholder="e.g. Dax and Fio">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Service</label>
+            <select id="psdwService">
+              <option value="Pet Sitting">Pet Sitting</option>
+              <option value="Dog Walking">Dog Walking</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">Requested date</label>
+              <input type="text" id="psdwDate" placeholder="e.g. 9/12/26">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Preferred time range <span class="sample-flag">(leave blank if not given)</span></label>
+              <input type="text" id="psdwTimeRange" placeholder="e.g. 9:00–10:00 AM">
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Notes (feeding, walks, potty breaks, etc.)</label>
+            <textarea id="psdwNotes" rows="3" placeholder="Optional"></textarea>
+          </div>
+          <div class="field-group" style="background:var(--page); border-radius:8px; padding:10px 12px;">
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer;">
+              <input type="checkbox" id="psdwMultiOvernight" onchange="renderPsdwWarnings()" style="width:auto;">
+              Multiple overnight stays requested for the same day?
+            </label>
+            <div id="psdwOvernightWarning"></div>
+          </div>
+
+          <div class="field-group" style="margin-top:12px;">
+            <label class="field-label">Message template to use</label>
+            <select id="psdwTemplateSelect"></select>
+          </div>
+
+          <div class="output-actions" style="margin-top:6px;">
+            <button class="btn-primary" onclick="generatePsdwCustomerMessage()">Generate Customer Message</button>
+            <button class="btn-secondary" onclick="clearPsdwForm()">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: generated output -->
+      <div class="panel">
+        <h2>Customer Message</h2>
+        <div class="output-box" id="customerMessageOut">Nothing generated yet.</div>
+        <div class="output-actions">
+          <button class="btn-secondary" onclick="copyText('customerMessageOut')">Copy</button>
+        </div>
+
+        <div id="jumpBallOutputSection" style="display:none;">
+          <h2 style="margin-top:20px;" id="internalNoteHeading">Jump-Ball Forward (to Rosy)</h2>
+          <div class="output-box" id="jumpBallOut">Nothing generated yet.</div>
+          <div class="output-actions">
+            <button class="btn-secondary" onclick="copyText('jumpBallOut')">Copy</button>
+          </div>
+        </div>
+
+        <p class="note" style="margin-top:18px;">ZIP rules (Bookable/Jump-Ball/Hard Rule) are seeded from the SW Portland Master SOP.</p>
+      </div>
+    </div>
+
+    <button class="btn-secondary" id="tplToggleBtn" onclick="toggleTemplateManager()" style="margin-top:14px;">Manage Templates ▾</button>
+
+    <div class="assistant-grid" id="templateManagerPanel" style="display:none; margin-top:12px;">
+      <div class="panel">
+        <h2>Templates</h2>
+        <p class="note" style="margin-top:0;">Add, edit, or duplicate the message templates used by the Admin Assistant. Variables like <code>[CLIENT_NAME]</code> are automatically filled in when a message is generated.</p>
+        <div class="field-group">
+          <label class="field-label">Select a template to edit</label>
+          <select id="tplListSelect" onchange="selectTemplate(this.value)" style="margin-bottom:10px;"></select>
+        </div>
+        <div class="output-actions">
+          <button class="btn-primary" onclick="startNewTemplate()">+ New Template</button>
+          <button class="btn-secondary" onclick="resetAppToDefault()">Reset to Default</button>
+        </div>
+        <div id="tplResetStatus" style="font-size:12px; color:var(--brand); margin-top:6px; min-height:16px;"></div>
+      </div>
+
+      <div class="panel tpl-editor">
+        <h2>Edit Template</h2>
+        <div class="field-group">
+          <label class="field-label">Template name</label>
+          <input type="text" id="tplName" placeholder="e.g. MPS - New Client Acknowledgment">
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">Workflow</label>
+            <select id="tplWorkflow">
+              <option value="MPS">MPS</option>
+              <option value="PSDW">PSDW</option>
+              <option value="General">General (shows in both)</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Type</label>
+            <select id="tplType">
+              <option value="customer_message">Customer message</option>
+              <option value="internal_note">Internal note (e.g. forward to Rosy/Tulsi)</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Context (when this template should be suggested)</label>
+          <select id="tplContext">
+            <option value="quote_no_service">Quote given, service not yet chosen</option>
+            <option value="quote_schedule_missing_info">Schedule offer \u2014 info still needed</option>
+            <option value="quote_schedule_address_only">Schedule offer \u2014 address + service only</option>
+            <option value="quote_schedule_all_set">Schedule offer \u2014 all set</option>
+            <option value="quote_schedule_consult_tulsi">Schedule offer \u2014 consult Tulsi</option>
+            <option value="quote_bookable_days">Quote + bookable-day scheduling (existing clients)</option>
+            <option value="new_lead_request_zip_breed">New lead \u2014 request ZIP + breed (Yelp/Thumbtack/PI)</option>
+            <option value="jump_ball_quote_hold">Jump-Ball \u2014 quote + hold</option>
+            <option value="jump_ball_hold_no_quote">Jump-Ball \u2014 hold, no quote yet</option>
+            <option value="jump_ball_forward">Jump-Ball \u2014 internal forward</option>
+            <option value="out_of_area_generic">Outside our service area</option>
+            <option value="se_portland_clackamas_referral">SE Portland-Clackamas territory referral</option>
+            <option value="grandfather_escalation">Hard Rule \u2014 grandfathering escalation (internal)</option>
+            <option value="booking_request_missing_info">Booking request \u2014 missing info</option>
+            <option value="post_conversion_dog">Post-conversion \u2014 dog</option>
+            <option value="post_conversion_cat">Post-conversion \u2014 cat</option>
+            <option value="cats_more_info">Cats \u2014 more info needed</option>
+            <option value="cats_price_short">Cats \u2014 short-haired price</option>
+            <option value="cats_price_long">Cats \u2014 long-haired price</option>
+            <option value="cats_kitty_pedi">Cats \u2014 Kitty Pedi</option>
+            <option value="woofpack_addon">Woof Pack \u2014 add-on request</option>
+            <option value="psdw_new_client_consult">PSDW \u2014 price quote and consultation</option>
+            <option value="other">Other / general</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Message body</label>
+          <textarea id="tplBody" rows="10" placeholder="Hello [CLIENT_NAME]! ..."></textarea>
+        </div>
+        <div class="tpl-vars">
+          Common variables: <code>[CLIENT_NAME]</code> <code>[PET_NAME]</code> <code>[BREED]</code> <code>[ZIP]</code>
+          <code>[SERVICE]</code> <code>[PRICE]</code> <code>[LUXURY_BATH_PRICE]</code> <code>[FULL_GROOM_PRICE]</code>
+          <code>[DATE]</code> <code>[TIME]</code> <code>[GROOMER]</code> <code>[PHONE]</code> <code>[EMAIL]</code>
+          <code>[ADDRESS]</code> <code>[ADMIN_NAME]</code> <code>[MISSING_FIELDS_LIST]</code> <code>[ADDON]</code>
+          <code>[FREQUENCY]</code> <code>[DAY]</code>.
+          Variables that come straight from a form field (like <code>[DATE]</code> or <code>[ADDON]</code>) stay as <code>[LIKE_THIS]</code> in the output if left blank, so it's obvious what still needs filling in by hand. <code>[MISSING_FIELDS_LIST]</code> is computed automatically and always fills in.
+        </div>
+        <div class="output-actions">
+          <button class="btn-primary" onclick="saveCurrentTemplate()">Save Template</button>
+          <button class="btn-secondary" onclick="duplicateCurrentTemplate()">Duplicate</button>
+          <button class="btn-secondary" onclick="deleteCurrentTemplate()">Delete</button>
+        </div>
+        <div id="tplSaveStatus" style="font-size:12px; color:var(--brand); margin-top:6px; min-height:16px;"></div>
+      </div>
+    </div>
+  </div><!-- /assistantSection -->
+
+</div>
+
+<script>
+const BREED_PRICING = {"Affenpincher":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"Afghan":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Airedale":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Akita":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Alaskan Malamute":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"American Bulldog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"American Eskimo":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"American Staffordshire (Pit)":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"American Water Spaniel":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"American/English Foxhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Anatolian Shepherd":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"}},"Aussiepoo/Aussiedoodle":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L6","price":"159","gtn":"1.5"}},"Australian Cattle Dog":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L6","price":"159","gtn":"1.5"}},"Australian Shepherd":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Australian Shepherd - Miniature":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"2"}},"Australian Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Basenji":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Bassett Hound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Beagle":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Bearded Collie":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Beauceron":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"}},"Bedlington":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Belgian Malinois":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Belgian Sheepdog":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Belgian Tervuren":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Bernedoodle over 40lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Bernedoodle under 40lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Bernese Mountain Dog":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Bichon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Blood Hound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Border Collie":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Border Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Borzoi":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Boston Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Bouvier des Flandres":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Boxer":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Briard":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Brittany Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Brussels Griffon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"Bull Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Bullmastiff":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"}},"Cairn Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Canaan Dog":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Cardigan Welsh Corgi (w/ tail)":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Catahoula Leopard Dog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Cavachon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Cavalier King Charles Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Cavapoo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Chesapeake Bay Retriever":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Chihuahua- Long Hair":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"Chihuahua- Short Hair":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Chinese Crested":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Chinese Crested- Powder-Puff":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Chinese Shar-Pei":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Chow Chow":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Clumber Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Cockapoo over 25 pounds":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Cockapoo under 25 pounds":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Cocker Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Collie- Rough":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Collie- Smooth":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Coon Hound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Coton de Tulear":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Curly Coated Retriever":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Dachshund, Long Haired":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Dachshund, Smooth":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Dachshund, Wire-haired":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Dalmation":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Dandie Dinmont":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Doberman":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"English Bulldog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"English Setter":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"English Springer Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"English Toy Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Finnish Spitz":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Flat Coated Retriever":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Fox- Smooth":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Fox- Wire":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"French Bulldog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"German Shepherd":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"German Short Haired Pointer":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"German Wirehaired Pointer":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Giant Schnauzer":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Golden Retriever":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Goldendoodle over 40 lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Goldendoodle under 40 lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Gordon Setter":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Great Dane":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"}},"Great Pyrenees":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Greater Swiss Mountain Dog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"}},"Greyhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Harrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Havanese":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Husky":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Ibizan":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Irish Setter":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Irish Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Irish Water Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Irish Wolfhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Italian Greyhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Japanese Chin":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Japanese Spitz":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Keeshond":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Kerry Blue":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Kuvasz":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Lab":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Labradoodle over 40 lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Labradoodle under 40 lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Lagatto Romagnolo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Lakeland":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Leonberger":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Lhasa Apso":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Lowchen":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Maltese":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Maltipoo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Manchester Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Manchester- Standard":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Mastiff":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"}},"Miniature Bull Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Miniature Pinscher (Min Pin)":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Miniature Schnauzer":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Morkie":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"Newfoundland":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Norfolk":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Norwegian Elkhound":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Norwich":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Old English Sheepdog":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Otterhound":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Papillion":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Parsons (Jack) Russell- Short":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Parsons (Jack) Russell- Wire":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"PBGV Petit Basset Griffon Vendeen":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Peekapoo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Pekingese":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Pembroke Welsh Corgi":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Pharaoh":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Pointer":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Pomeranian":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Pomsky":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Poodle (Standard) over 40 lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Poodle (Standard) under 40lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Poodle- Miniature":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Poodle- Toy":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Portuguese Water Dog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Pug":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"Puggle":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Redbone Coonhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Rhodesian Ridgeback":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Rottweiler":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"}},"Saluki":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Samoyed":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Schipperke":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Scottish Deerhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Scottish Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Sealyham":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Sheepadoodle over 40lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Sheepadoodle under 40lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Shetland Sheepdog (Sheltie)":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Shiba Inu":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Shichon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Shih Tzu":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Shihpoo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Silky Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Skye Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Spinone Italiano":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"St Bernard":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1"},"fullGroom":{"level":"L9","price":"219","gtn":"2"}},"Standard Schnauzer":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Sussex Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Tibetan Spaniel":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Tibetan Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L6","price":"159","gtn":"1.5"}},"Vizsla":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Weimaraner":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Welsh Springer Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Welsh Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"West Highland White (Westie)":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L6","price":"159","gtn":"1.5"}},"Wheaten (Soft Coated)":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Whippet":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Wirehaired Pointing Griffon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Yorkie-shon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Yorkiepoo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Yorkshire Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}}};
+
+const ZIP_LATLON = {
+  "97124": [45.5443,-122.9521], "97217": [45.5909,-122.6932], "97211": [45.5767,-122.6387], "97218": [45.5775,-122.6033],
+  "97230": [45.5508,-122.5057], "97024": [45.5539,-122.4464], "97229": [45.5594,-122.8074], "97210": [45.5478,-122.7288],
+  "97060": [45.5304,-122.3714], "97006": [45.5180,-122.8542], "97212": [45.5420,-122.6486], "97232": [45.5296,-122.6463],
+  "97220": [45.5517,-122.5522], "97003": [45.5097,-122.8799], "97209": [45.5267,-122.6881], "97205": [45.5205,-122.7073],
+  "97214": [45.5114,-122.6457], "97213": [45.5353,-122.6038], "97215": [45.5162,-122.5975], "97216": [45.5162,-122.5566],
+  "97233": [45.5144,-122.5046], "97030": [45.5141,-122.4229], "97078": [45.4903,-122.8804], "97225": [45.5065,-122.7756],
+  "97201": [45.5056,-122.6882], "97239": [45.4874,-122.6876], "97202": [45.4808,-122.6427], "97206": [45.4856,-122.5946],
+  "97266": [45.4864,-122.5594], "97236": [45.4797,-122.5146], "97080": [45.4842,-122.3849], "97123": [45.4054,-122.9908],
+  "97008": [45.4618,-122.7999], "97007": [45.4502,-122.8849], "97223": [45.4395,-122.7712], "97219": [45.4618,-122.7182],
+  "97222": [45.4485,-122.6286], "97086": [45.4433,-122.5134], "97089": [45.4216,-122.4497], "97224": [45.4081,-122.8034],
+  "97035": [45.4139,-122.7201], "97034": [45.4032,-122.6882], "97267": [45.4105,-122.6162], "97015": [45.4120,-122.5458],
+  "97009": [45.4162,-122.3348], "97062": [45.3611,-122.7700], "97027": [45.3890,-122.5932], "97140": [45.3627,-122.8628],
+  "97068": [45.3479,-122.6806], "97045": [45.3394,-122.5434], "97070": [45.3018,-122.7752], "97132": [45.3296,-122.9652],
+  "97005": [45.4910,-122.8036], "97221": [45.4983,-122.7288],
+  // No official ZCTA data (PO-box or administratively merged zips) — approximate to the nearest city center
+  "97036": [45.3662,-122.6301], "97268": [45.4426,-122.6398], "97269": [45.4426,-122.6398],
+  "97280": [45.5152,-122.6784], "97281": [45.5152,-122.6784]
+};
+
+const ZIP_BOUNDARIES = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"zip":"97062"},"geometry":{"type":"Polygon","coordinates":[[[-122.784837,45.340429],[-122.783633,45.35365],[-122.795559,45.353309],[-122.793442,45.358128],[-122.794428,45.364134],[-122.799038,45.363993],[-122.800557,45.369861],[-122.809076,45.369027],[-122.818033,45.385055],[-122.818467,45.392055],[-122.814561,45.389476],[-122.807886,45.389459],[-122.804339,45.39296],[-122.79156,45.397298],[-122.778942,45.398604],[-122.775334,45.397215],[-122.773813,45.393215],[-122.768964,45.395235],[-122.767885,45.392968],[-122.764422,45.393219],[-122.764441,45.387329],[-122.761038,45.386212],[-122.754388,45.385671],[-122.750439,45.388439],[-122.734909,45.383881],[-122.719864,45.38229],[-122.710976,45.383755],[-122.707219,45.37524],[-122.702145,45.375145],[-122.714408,45.359401],[-122.723559,45.357279],[-122.746878,45.331998],[-122.75407,45.331971],[-122.754155,45.335593],[-122.759818,45.335548],[-122.759786,45.343131],[-122.757729,45.343117],[-122.757657,45.346557],[-122.752501,45.346562],[-122.752554,45.348497],[-122.76161,45.348538],[-122.761894,45.35373],[-122.764273,45.353737],[-122.769163,45.340354],[-122.784837,45.340429]]]}},{"type":"Feature","properties":{"zip":"97216"},"geometry":{"type":"Polygon","coordinates":[[[-122.578679,45.504821],[-122.579056,45.522781],[-122.571284,45.522754],[-122.571259,45.524888],[-122.569346,45.522723],[-122.55829,45.522641],[-122.557218,45.526272],[-122.557302,45.523947],[-122.552225,45.52446],[-122.552383,45.522601],[-122.537767,45.522494],[-122.537683,45.504093],[-122.539988,45.504117],[-122.539971,45.506151],[-122.542194,45.50414],[-122.563799,45.504393],[-122.56516,45.507943],[-122.565945,45.504437],[-122.578679,45.504821]]]}},{"type":"Feature","properties":{"zip":"97060"},"geometry":{"type":"Polygon","coordinates":[[[-122.410244,45.52433],[-122.413142,45.52431],[-122.413133,45.527719],[-122.433621,45.527827],[-122.433654,45.533297],[-122.423877,45.536353],[-122.425111,45.542948],[-122.42148,45.542943],[-122.421493,45.546349],[-122.419751,45.546333],[-122.423083,45.548404],[-122.430956,45.548102],[-122.423185,45.551679],[-122.423165,45.56045],[-122.416879,45.56085],[-122.416929,45.566697],[-122.391802,45.574541],[-122.380302,45.575941],[-122.352802,45.569441],[-122.331502,45.548241],[-122.29482,45.543542],[-122.29464,45.541404],[-122.306084,45.539038],[-122.32754,45.538144],[-122.32575,45.527425],[-122.333674,45.523553],[-122.331555,45.515299],[-122.337279,45.513165],[-122.339177,45.50718],[-122.330893,45.499928],[-122.319968,45.498358],[-122.3259,45.4928],[-122.325767,45.483168],[-122.332358,45.488038],[-122.338172,45.484266],[-122.350222,45.486673],[-122.366554,45.495675],[-122.371629,45.495194],[-122.384277,45.499673],[-122.390811,45.507046],[-122.390126,45.509892],[-122.386534,45.510294],[-122.386881,45.519034],[-122.398418,45.519069],[-122.398405,45.516298],[-122.400794,45.516664],[-122.401138,45.519066],[-122.410577,45.519049],[-122.410244,45.52433]]]}},{"type":"Feature","properties":{"zip":"97034"},"geometry":{"type":"Polygon","coordinates":[[[-122.697753,45.423766],[-122.707838,45.424479],[-122.700004,45.43432],[-122.687141,45.437219],[-122.681893,45.432841],[-122.67327,45.432741],[-122.660895,45.424089],[-122.653088,45.4332],[-122.652455,45.437184],[-122.647743,45.438514],[-122.651305,45.436541],[-122.649304,45.42944],[-122.655405,45.423441],[-122.657273,45.410108],[-122.641258,45.401632],[-122.637951,45.397278],[-122.653078,45.395253],[-122.656882,45.397579],[-122.657303,45.394443],[-122.662833,45.39221],[-122.669826,45.396911],[-122.685614,45.396835],[-122.696922,45.385479],[-122.696278,45.382926],[-122.721413,45.382614],[-122.718918,45.397724],[-122.713606,45.405641],[-122.700607,45.408862],[-122.705358,45.409124],[-122.70484,45.412586],[-122.70826,45.414433],[-122.707525,45.417967],[-122.700932,45.418618],[-122.697753,45.423766]]]}},{"type":"Feature","properties":{"zip":"97232"},"geometry":{"type":"Polygon","coordinates":[[[-122.666746,45.535095],[-122.62129,45.535529],[-122.620252,45.532607],[-122.622932,45.533049],[-122.618247,45.52848],[-122.621363,45.526318],[-122.620153,45.52371],[-122.62712,45.522926],[-122.667093,45.523028],[-122.669003,45.527626],[-122.66535,45.530798],[-122.666746,45.535095]]]}},{"type":"Feature","properties":{"zip":"97225"},"geometry":{"type":"Polygon","coordinates":[[[-122.743804,45.499822],[-122.743706,45.476444],[-122.750684,45.476705],[-122.748804,45.479337],[-122.749285,45.480995],[-122.75018,45.478365],[-122.759478,45.477637],[-122.761228,45.480332],[-122.765153,45.47661],[-122.772005,45.476254],[-122.771027,45.486475],[-122.775834,45.488091],[-122.774753,45.491253],[-122.776871,45.49108],[-122.776951,45.493819],[-122.802103,45.503438],[-122.80632,45.501873],[-122.813403,45.504125],[-122.811319,45.508409],[-122.813284,45.510983],[-122.804299,45.514235],[-122.795765,45.521524],[-122.795458,45.5171],[-122.792169,45.516308],[-122.791115,45.519705],[-122.779336,45.518893],[-122.779053,45.521693],[-122.777367,45.521787],[-122.777601,45.51867],[-122.747022,45.519052],[-122.74897,45.516188],[-122.743859,45.516665],[-122.743785,45.505017],[-122.738596,45.504766],[-122.743804,45.499822]]]}},{"type":"Feature","properties":{"zip":"97223"},"geometry":{"type":"Polygon","coordinates":[[[-122.784423,45.451477],[-122.778904,45.463468],[-122.774258,45.462012],[-122.773886,45.467007],[-122.771246,45.466055],[-122.773648,45.470858],[-122.775339,45.470288],[-122.772639,45.476258],[-122.765153,45.47661],[-122.761228,45.480332],[-122.759478,45.477637],[-122.75018,45.478365],[-122.749285,45.480995],[-122.750684,45.476705],[-122.744351,45.477264],[-122.744021,45.415311],[-122.749067,45.415237],[-122.749046,45.418222],[-122.754137,45.418194],[-122.76292,45.424951],[-122.756017,45.419328],[-122.753782,45.415172],[-122.757813,45.418792],[-122.766374,45.419896],[-122.805611,45.418827],[-122.809256,45.417556],[-122.809481,45.414257],[-122.812804,45.415713],[-122.810986,45.419117],[-122.826346,45.418136],[-122.826416,45.419889],[-122.838809,45.420442],[-122.839673,45.41749],[-122.845031,45.416543],[-122.853146,45.423341],[-122.853162,45.426439],[-122.828539,45.428378],[-122.816966,45.441103],[-122.787969,45.448074],[-122.785054,45.452219],[-122.785968,45.458431],[-122.784423,45.451477]]]}},{"type":"Feature","properties":{"zip":"97015"},"geometry":{"type":"Polygon","coordinates":[[[-122.573521,45.41351],[-122.579253,45.433196],[-122.566455,45.4333],[-122.566943,45.438381],[-122.565248,45.435633],[-122.543177,45.433432],[-122.543191,45.431398],[-122.536096,45.427912],[-122.521564,45.424962],[-122.485745,45.426259],[-122.483762,45.425658],[-122.484078,45.420053],[-122.479824,45.420003],[-122.479823,45.410857],[-122.485659,45.411922],[-122.502139,45.408425],[-122.506406,45.409932],[-122.502625,45.414188],[-122.504827,45.414394],[-122.50692,45.409271],[-122.516899,45.409142],[-122.523048,45.402142],[-122.524773,45.394844],[-122.539146,45.393032],[-122.554443,45.40023],[-122.570831,45.391499],[-122.575338,45.391334],[-122.572393,45.401916],[-122.577074,45.402741],[-122.576121,45.407194],[-122.578391,45.407194],[-122.577866,45.410691],[-122.57586,45.410669],[-122.576911,45.412626],[-122.573521,45.41351]]]}},{"type":"Feature","properties":{"zip":"97080"},"geometry":{"type":"Polygon","coordinates":[[[-122.311941,45.461538],[-122.496748,45.460982],[-122.490208,45.462949],[-122.491107,45.468704],[-122.49689,45.472671],[-122.493501,45.473377],[-122.49323,45.475626],[-122.485312,45.475582],[-122.48517,45.484656],[-122.480734,45.484616],[-122.482949,45.491962],[-122.469225,45.48858],[-122.456186,45.489133],[-122.456703,45.497003],[-122.44702,45.497104],[-122.445369,45.494266],[-122.444773,45.497117],[-122.440492,45.496565],[-122.441953,45.494831],[-122.434611,45.497174],[-122.434593,45.495243],[-122.430228,45.497983],[-122.390927,45.496567],[-122.389777,45.498436],[-122.389814,45.496315],[-122.387004,45.49629],[-122.387388,45.501709],[-122.384878,45.498732],[-122.366554,45.495675],[-122.350222,45.486673],[-122.338172,45.484266],[-122.332358,45.488038],[-122.326097,45.483166],[-122.3259,45.4928],[-122.323158,45.496495],[-122.314119,45.49935],[-122.306003,45.505345],[-122.298477,45.501962],[-122.306962,45.493724],[-122.306596,45.491417],[-122.298708,45.490033],[-122.290628,45.498355],[-122.277872,45.495991],[-122.282481,45.490671],[-122.290881,45.486813],[-122.287317,45.481357],[-122.28934,45.470623],[-122.283029,45.468018],[-122.288849,45.469267],[-122.290274,45.472865],[-122.289803,45.475976],[-122.296796,45.475961],[-122.296561,45.466746],[-122.305812,45.46687],[-122.305818,45.462685],[-122.311941,45.461538]]]}},{"type":"Feature","properties":{"zip":"97229"},"geometry":{"type":"Polygon","coordinates":[[[-122.840886,45.545847],[-122.844753,45.549195],[-122.849422,45.548624],[-122.847454,45.551259],[-122.854629,45.550533],[-122.856065,45.537673],[-122.899232,45.553965],[-122.899194,45.559036],[-122.894028,45.566338],[-122.883374,45.56039],[-122.875228,45.559121],[-122.875323,45.566363],[-122.87194,45.565659],[-122.872032,45.572073],[-122.867631,45.572064],[-122.867367,45.569943],[-122.86005,45.574007],[-122.858256,45.577572],[-122.838823,45.577471],[-122.840697,45.581047],[-122.838272,45.58186],[-122.816016,45.581348],[-122.816594,45.579401],[-122.811449,45.577364],[-122.811681,45.580429],[-122.802355,45.580797],[-122.797096,45.587049],[-122.790975,45.589875],[-122.789214,45.588413],[-122.790401,45.584753],[-122.783974,45.586386],[-122.788047,45.583327],[-122.785748,45.582627],[-122.786879,45.58116],[-122.782819,45.582942],[-122.786266,45.57728],[-122.784861,45.565544],[-122.760492,45.561834],[-122.763645,45.558906],[-122.755815,45.557512],[-122.757365,45.554553],[-122.752913,45.556731],[-122.753324,45.552963],[-122.748944,45.557419],[-122.749166,45.553851],[-122.743701,45.547627],[-122.749138,45.542436],[-122.739273,45.537713],[-122.741193,45.534759],[-122.746102,45.533847],[-122.743766,45.533825],[-122.743812,45.526138],[-122.747136,45.525441],[-122.743862,45.519515],[-122.777601,45.51867],[-122.777367,45.521787],[-122.779053,45.521693],[-122.779336,45.518893],[-122.791115,45.519705],[-122.792169,45.516308],[-122.795458,45.5171],[-122.795765,45.521524],[-122.802686,45.517455],[-122.815711,45.52239],[-122.815971,45.519959],[-122.824742,45.521428],[-122.82418,45.523234],[-122.827658,45.523236],[-122.825373,45.52469],[-122.826895,45.526412],[-122.837367,45.531148],[-122.824453,45.534217],[-122.824497,45.542768],[-122.839414,45.54477],[-122.848162,45.541561],[-122.840886,45.545847]],[[-122.856041,45.549941],[-122.855909,45.551781],[-122.856831,45.550098],[-122.856041,45.549941]],[[-122.855339,45.552781],[-122.857406,45.552342],[-122.853389,45.552545],[-122.855339,45.552781]]]}},{"type":"Feature","properties":{"zip":"97045"},"geometry":{"type":"Polygon","coordinates":[[[-122.577565,45.379756],[-122.574425,45.38213],[-122.573326,45.39006],[-122.554832,45.400127],[-122.539146,45.393032],[-122.52459,45.39492],[-122.523048,45.402142],[-122.515404,45.409603],[-122.50203,45.395014],[-122.480359,45.390643],[-122.473745,45.392169],[-122.468496,45.384236],[-122.443958,45.382803],[-122.437979,45.384344],[-122.432925,45.389593],[-122.422074,45.388764],[-122.409719,45.378136],[-122.401979,45.376349],[-122.398193,45.373214],[-122.397032,45.367636],[-122.381619,45.355914],[-122.385238,45.349673],[-122.381242,45.342077],[-122.389692,45.337553],[-122.383088,45.333151],[-122.381622,45.330954],[-122.38132,45.32806],[-122.383362,45.333115],[-122.388649,45.336015],[-122.391418,45.334426],[-122.416974,45.345537],[-122.436077,45.338507],[-122.42588,45.328846],[-122.429352,45.326145],[-122.42762,45.323856],[-122.428963,45.320915],[-122.422745,45.318687],[-122.423103,45.312683],[-122.419456,45.312775],[-122.426216,45.306],[-122.421826,45.303081],[-122.425805,45.295236],[-122.425412,45.287718],[-122.442627,45.283062],[-122.443213,45.278372],[-122.446445,45.280788],[-122.452385,45.277351],[-122.453062,45.274109],[-122.455516,45.276583],[-122.454902,45.280981],[-122.483288,45.281364],[-122.478065,45.292152],[-122.480888,45.29475],[-122.481201,45.299789],[-122.497658,45.303326],[-122.504114,45.301493],[-122.510221,45.303291],[-122.517695,45.299904],[-122.517584,45.295467],[-122.538576,45.296429],[-122.537797,45.293492],[-122.546228,45.293337],[-122.546252,45.288808],[-122.549576,45.291321],[-122.549264,45.295008],[-122.56356,45.293976],[-122.570115,45.271237],[-122.547752,45.269462],[-122.54611,45.273142],[-122.543011,45.273435],[-122.543026,45.277326],[-122.544904,45.277567],[-122.543354,45.280585],[-122.536949,45.282291],[-122.53462,45.268599],[-122.530818,45.267246],[-122.533305,45.265765],[-122.518094,45.260712],[-122.519562,45.247738],[-122.538025,45.241196],[-122.546555,45.235443],[-122.548745,45.235898],[-122.548241,45.239056],[-122.557182,45.24221],[-122.561569,45.247402],[-122.576506,45.250418],[-122.575132,45.257083],[-122.583301,45.250252],[-122.60434,45.24757],[-122.615921,45.254215],[-122.617697,45.268244],[-122.623128,45.266845],[-122.624468,45.271569],[-122.629478,45.271592],[-122.630348,45.278226],[-122.633621,45.28022],[-122.642792,45.280041],[-122.64695,45.283752],[-122.648117,45.289131],[-122.646263,45.29158],[-122.651215,45.294277],[-122.653564,45.299644],[-122.657074,45.29977],[-122.660499,45.296595],[-122.666195,45.305138],[-122.663875,45.313916],[-122.665758,45.318203],[-122.659123,45.329186],[-122.650883,45.336738],[-122.619702,45.350942],[-122.605008,45.362355],[-122.60279,45.365817],[-122.607802,45.372342],[-122.591164,45.378559],[-122.577565,45.379756]]]}},{"type":"Feature","properties":{"zip":"97035"},"geometry":{"type":"Polygon","coordinates":[[[-122.707838,45.424479],[-122.697753,45.423766],[-122.700932,45.418618],[-122.707525,45.417967],[-122.70826,45.414433],[-122.70484,45.412586],[-122.705358,45.409124],[-122.700607,45.408862],[-122.713606,45.405641],[-122.718918,45.397724],[-122.721413,45.382614],[-122.750759,45.387608],[-122.743929,45.393047],[-122.743848,45.396544],[-122.747247,45.396382],[-122.743942,45.402702],[-122.743991,45.426023],[-122.739104,45.427147],[-122.73887,45.433231],[-122.728199,45.43433],[-122.727069,45.440383],[-122.717218,45.440302],[-122.717248,45.438164],[-122.712821,45.440225],[-122.711216,45.43468],[-122.710227,45.440207],[-122.698148,45.438287],[-122.698648,45.433847],[-122.707838,45.424479]]]}},{"type":"Feature","properties":{"zip":"97068"},"geometry":{"type":"Polygon","coordinates":[[[-122.696395,45.383452],[-122.696922,45.385479],[-122.691532,45.389133],[-122.688889,45.395605],[-122.685614,45.396835],[-122.669826,45.396911],[-122.662833,45.39221],[-122.657303,45.394443],[-122.656882,45.397579],[-122.653078,45.395253],[-122.637781,45.398411],[-122.627784,45.392749],[-122.620103,45.377642],[-122.607802,45.372342],[-122.60279,45.365817],[-122.619702,45.350942],[-122.650883,45.336738],[-122.659123,45.329186],[-122.665758,45.318203],[-122.663875,45.313916],[-122.666195,45.305138],[-122.660467,45.297811],[-122.660195,45.292915],[-122.664865,45.284835],[-122.679766,45.291468],[-122.685267,45.298834],[-122.69282,45.30029],[-122.690688,45.301417],[-122.691953,45.317436],[-122.706195,45.317494],[-122.706203,45.322553],[-122.712911,45.322554],[-122.714582,45.331964],[-122.722704,45.340863],[-122.722743,45.357283],[-122.714408,45.359401],[-122.702145,45.375145],[-122.707219,45.37524],[-122.708577,45.381962],[-122.696395,45.383452]]]}},{"type":"Feature","properties":{"zip":"97027"},"geometry":{"type":"Polygon","coordinates":[[[-122.598119,45.404032],[-122.573975,45.397787],[-122.575338,45.391334],[-122.571079,45.3914],[-122.574165,45.38884],[-122.57515,45.380573],[-122.591164,45.378559],[-122.604439,45.372604],[-122.617403,45.375342],[-122.621237,45.38027],[-122.614497,45.379482],[-122.607481,45.381877],[-122.608172,45.385054],[-122.60228,45.388996],[-122.604261,45.390608],[-122.594166,45.399531],[-122.597027,45.401601],[-122.599895,45.399052],[-122.603219,45.401023],[-122.598119,45.404032]]]}},{"type":"Feature","properties":{"zip":"97219"},"geometry":{"type":"Polygon","coordinates":[[[-122.743626,45.476439],[-122.687595,45.47535],[-122.680977,45.477155],[-122.682388,45.476242],[-122.679672,45.476924],[-122.679432,45.47282],[-122.677627,45.472726],[-122.678593,45.475926],[-122.671784,45.475828],[-122.670388,45.477656],[-122.667839,45.476478],[-122.665304,45.461978],[-122.652605,45.445741],[-122.645205,45.441641],[-122.652455,45.437184],[-122.65302,45.43598],[-122.652582,45.434151],[-122.653088,45.4332],[-122.660895,45.424089],[-122.67327,45.432741],[-122.681893,45.432841],[-122.687141,45.437219],[-122.697396,45.436014],[-122.698148,45.438287],[-122.706989,45.43844],[-122.70762,45.440179],[-122.710227,45.440207],[-122.711216,45.43468],[-122.712821,45.440225],[-122.717248,45.438164],[-122.717218,45.440302],[-122.727069,45.440383],[-122.728199,45.43433],[-122.73887,45.433231],[-122.739104,45.427147],[-122.743991,45.426023],[-122.743626,45.476439]]]}},{"type":"Feature","properties":{"zip":"97214"},"geometry":{"type":"Polygon","coordinates":[[[-122.618885,45.50513],[-122.649425,45.504837],[-122.651419,45.506831],[-122.65372,45.504854],[-122.661868,45.504895],[-122.665853,45.511539],[-122.670417,45.51307],[-122.667093,45.523028],[-122.620153,45.52371],[-122.618885,45.50513]]]}},{"type":"Feature","properties":{"zip":"97239"},"geometry":{"type":"Polygon","coordinates":[[[-122.712031,45.476137],[-122.716297,45.480547],[-122.712955,45.481842],[-122.720564,45.483469],[-122.719388,45.485379],[-122.710265,45.481937],[-122.715357,45.484604],[-122.713078,45.484834],[-122.711951,45.489938],[-122.71442,45.491129],[-122.711121,45.493159],[-122.713216,45.502181],[-122.698766,45.498608],[-122.695621,45.49861],[-122.691934,45.502762],[-122.684316,45.502192],[-122.686144,45.497957],[-122.678699,45.500845],[-122.665103,45.501184],[-122.669145,45.484237],[-122.667839,45.476478],[-122.676916,45.476569],[-122.679145,45.472745],[-122.679672,45.476924],[-122.712031,45.476137]]]}},{"type":"Feature","properties":{"zip":"97210"},"geometry":{"type":"Polygon","coordinates":[[[-122.701355,45.523989],[-122.74897,45.516188],[-122.746842,45.517829],[-122.748383,45.519528],[-122.743862,45.519515],[-122.747136,45.525441],[-122.743812,45.526138],[-122.743766,45.533825],[-122.746102,45.533847],[-122.741193,45.534759],[-122.739374,45.538243],[-122.749138,45.542436],[-122.743701,45.547627],[-122.749166,45.553851],[-122.748944,45.557419],[-122.753324,45.552963],[-122.752913,45.556731],[-122.757365,45.554553],[-122.755815,45.557512],[-122.763645,45.558906],[-122.760492,45.561834],[-122.772113,45.562938],[-122.763347,45.569298],[-122.769541,45.566838],[-122.76823,45.570441],[-122.7594,45.575079],[-122.768033,45.583542],[-122.764308,45.585316],[-122.747077,45.576997],[-122.722695,45.560297],[-122.69578,45.548427],[-122.692003,45.544869],[-122.696076,45.541682],[-122.692338,45.539038],[-122.694897,45.539131],[-122.692972,45.53618],[-122.696854,45.537032],[-122.694711,45.534141],[-122.694274,45.522617],[-122.701355,45.523989]]]}},{"type":"Feature","properties":{"zip":"97124"},"geometry":{"type":"MultiPolygon","coordinates":[[[[-122.897638,45.526727],[-122.895522,45.527165],[-122.898145,45.526691],[-122.897638,45.526727]]],[[[-122.975504,45.523794],[-123.003386,45.52253],[-123.003369,45.52534],[-123.005453,45.525361],[-123.008156,45.522306],[-123.018186,45.522679],[-123.016655,45.519972],[-123.029518,45.519988],[-123.029519,45.524067],[-123.031885,45.524056],[-123.031816,45.520526],[-123.032226,45.526384],[-123.025239,45.527528],[-123.023978,45.533442],[-123.021214,45.534172],[-123.024272,45.537106],[-123.029771,45.533868],[-123.035142,45.534771],[-123.034071,45.537967],[-123.036842,45.540136],[-123.041802,45.539517],[-123.039188,45.545613],[-123.012473,45.543923],[-123.036507,45.556079],[-123.03581,45.572987],[-123.021673,45.573503],[-123.013727,45.596998],[-122.955157,45.575004],[-122.957765,45.579279],[-122.957118,45.583041],[-122.949479,45.590034],[-122.955288,45.594216],[-122.965143,45.593295],[-122.969104,45.595124],[-122.966256,45.612041],[-122.954064,45.612019],[-122.947992,45.614632],[-122.948472,45.616615],[-122.939243,45.618983],[-122.937376,45.625818],[-122.939472,45.629734],[-122.936623,45.632771],[-122.939326,45.64108],[-122.935111,45.643362],[-122.931918,45.651969],[-122.929103,45.653055],[-122.929214,45.633864],[-122.909131,45.633629],[-122.90899,45.620701],[-122.887872,45.620637],[-122.887992,45.606401],[-122.879966,45.606274],[-122.877252,45.601633],[-122.869792,45.59703],[-122.871408,45.594903],[-122.867901,45.588035],[-122.872787,45.580388],[-122.867634,45.581129],[-122.867633,45.573943],[-122.8721,45.573914],[-122.87194,45.565659],[-122.875323,45.566363],[-122.875228,45.559121],[-122.883374,45.56039],[-122.894028,45.566338],[-122.899194,45.559036],[-122.899232,45.553965],[-122.867553,45.541975],[-122.867476,45.534205],[-122.882749,45.53533],[-122.890289,45.538527],[-122.894833,45.529166],[-122.899625,45.529157],[-122.899627,45.515234],[-122.913258,45.520451],[-122.949795,45.519937],[-122.975537,45.522222],[-122.975504,45.523794]]]]}},{"type":"Feature","properties":{"zip":"97009"},"geometry":{"type":"MultiPolygon","coordinates":[[[[-122.425736,45.393442],[-122.422294,45.394409],[-122.421023,45.394113],[-122.425736,45.393442]]],[[[-122.410759,45.393425],[-122.409177,45.3962],[-122.413525,45.396215],[-122.413203,45.402511],[-122.405327,45.412518],[-122.408513,45.417598],[-122.400394,45.418018],[-122.397725,45.420626],[-122.398394,45.432881],[-122.391804,45.432769],[-122.391772,45.439822],[-122.383108,45.439718],[-122.385488,45.444448],[-122.381899,45.453703],[-122.389346,45.4613],[-122.311941,45.461538],[-122.305818,45.462685],[-122.305812,45.46687],[-122.296561,45.466746],[-122.296796,45.475961],[-122.289803,45.475976],[-122.288027,45.468686],[-122.278058,45.467702],[-122.273126,45.461491],[-122.263969,45.461516],[-122.260722,45.456084],[-122.251278,45.455833],[-122.24285,45.452692],[-122.245567,45.446853],[-122.257385,45.445286],[-122.260182,45.441634],[-122.256818,45.447236],[-122.260027,45.449156],[-122.261043,45.444022],[-122.276048,45.443389],[-122.289975,45.43918],[-122.29235,45.43172],[-122.287461,45.430925],[-122.287561,45.42918],[-122.290784,45.42807],[-122.278555,45.426617],[-122.280697,45.411219],[-122.293789,45.409439],[-122.293721,45.405755],[-122.301702,45.409041],[-122.3021,45.404135],[-122.319748,45.407482],[-122.329338,45.405319],[-122.329693,45.402444],[-122.323115,45.394371],[-122.338993,45.387331],[-122.334893,45.388418],[-122.322373,45.38216],[-122.321874,45.385507],[-122.309739,45.385934],[-122.296747,45.378343],[-122.286297,45.378566],[-122.287178,45.373257],[-122.282606,45.37188],[-122.309227,45.367878],[-122.317261,45.373226],[-122.324142,45.372906],[-122.347477,45.378528],[-122.351389,45.381378],[-122.349006,45.382439],[-122.352788,45.382465],[-122.3529,45.389035],[-122.373242,45.389284],[-122.373128,45.392694],[-122.375514,45.393316],[-122.385537,45.3893],[-122.391851,45.389325],[-122.396391,45.386114],[-122.408151,45.389453],[-122.408376,45.386302],[-122.413246,45.386347],[-122.413676,45.381959],[-122.420938,45.388359],[-122.432378,45.389551],[-122.431213,45.391148],[-122.426064,45.391701],[-122.425423,45.393169],[-122.421455,45.393318],[-122.419647,45.394878],[-122.418518,45.392967],[-122.410759,45.393425]]]]}},{"type":"Feature","properties":{"zip":"97086"},"geometry":{"type":"Polygon","coordinates":[[[-122.57905,45.461518],[-122.478663,45.459168],[-122.477303,45.456191],[-122.480978,45.456177],[-122.480017,45.449024],[-122.48254,45.449023],[-122.480395,45.437793],[-122.485754,45.438556],[-122.485771,45.43582],[-122.480499,45.436086],[-122.480356,45.432046],[-122.48382,45.43202],[-122.482388,45.428548],[-122.485758,45.428539],[-122.485745,45.426259],[-122.521271,45.424926],[-122.536096,45.427912],[-122.543191,45.431398],[-122.543177,45.433432],[-122.565248,45.435633],[-122.566943,45.438381],[-122.566455,45.4333],[-122.580656,45.432534],[-122.582363,45.440901],[-122.578931,45.449398],[-122.582547,45.449422],[-122.582587,45.451821],[-122.579024,45.451798],[-122.579079,45.455264],[-122.581134,45.45527],[-122.57905,45.461518]]]}},{"type":"Feature","properties":{"zip":"97132"},"geometry":{"type":"Polygon","coordinates":[[[-122.941669,45.375576],[-122.939697,45.375593],[-122.941219,45.371231],[-122.937723,45.367671],[-122.940565,45.364522],[-122.939203,45.346361],[-122.928533,45.34629],[-122.928556,45.334669],[-122.925399,45.334672],[-122.924494,45.331725],[-122.908887,45.332286],[-122.908866,45.317128],[-122.868009,45.317376],[-122.867925,45.284668],[-122.862272,45.289474],[-122.862083,45.28304],[-122.86482,45.28304],[-122.86482,45.280237],[-122.861752,45.280237],[-122.860353,45.273577],[-122.858528,45.274087],[-122.85424,45.266258],[-122.859486,45.264517],[-122.856645,45.259617],[-122.849723,45.259654],[-122.862602,45.253112],[-122.868144,45.252942],[-122.890193,45.257834],[-122.899528,45.256719],[-122.917976,45.267713],[-122.947317,45.267485],[-122.963894,45.284846],[-122.968724,45.284538],[-122.974568,45.279932],[-122.985116,45.283902],[-122.990991,45.282549],[-122.991862,45.28544],[-123.003695,45.284654],[-123.00283,45.298947],[-123.018044,45.300665],[-123.030972,45.296509],[-123.050694,45.299805],[-123.052315,45.294321],[-123.047798,45.294308],[-123.047871,45.291923],[-123.068263,45.291123],[-123.065421,45.295575],[-123.077407,45.295555],[-123.07769,45.298622],[-123.081216,45.299449],[-123.084189,45.304871],[-123.084189,45.311895],[-123.090947,45.311882],[-123.092009,45.316929],[-123.096632,45.311872],[-123.111752,45.31351],[-123.111977,45.32413],[-123.115083,45.324134],[-123.114993,45.338596],[-123.102339,45.33848],[-123.105422,45.342252],[-123.095504,45.342614],[-123.096595,45.352102],[-123.103235,45.351196],[-123.105495,45.356717],[-123.09997,45.356547],[-123.101174,45.369555],[-123.099525,45.376133],[-123.094915,45.381607],[-123.08673,45.378557],[-123.06837,45.379346],[-123.067147,45.383191],[-123.063624,45.383415],[-123.061203,45.390326],[-123.058483,45.387629],[-123.053121,45.387519],[-123.042323,45.380035],[-123.039483,45.374716],[-123.025389,45.366509],[-123.001986,45.362795],[-122.99152,45.36282],[-122.991519,45.36499],[-122.98096,45.367076],[-122.975469,45.371084],[-122.975324,45.377049],[-122.970756,45.376949],[-122.971818,45.380718],[-122.965449,45.380703],[-122.959317,45.386588],[-122.956573,45.382537],[-122.954119,45.385419],[-122.949597,45.38547],[-122.949364,45.375842],[-122.942481,45.379055],[-122.941669,45.375576]]]}},{"type":"Feature","properties":{"zip":"97218"},"geometry":{"type":"Polygon","coordinates":[[[-122.620266,45.552309],[-122.619957,45.569569],[-122.614201,45.570515],[-122.620379,45.571721],[-122.620455,45.578659],[-122.616538,45.578711],[-122.615326,45.586276],[-122.631937,45.587104],[-122.635331,45.599339],[-122.624152,45.600585],[-122.599172,45.59812],[-122.563286,45.583366],[-122.563415,45.577956],[-122.580297,45.584218],[-122.572396,45.58111],[-122.582524,45.573788],[-122.578041,45.570059],[-122.580447,45.565143],[-122.577664,45.56803],[-122.579677,45.552406],[-122.620266,45.552309]]]}},{"type":"Feature","properties":{"zip":"97215"},"geometry":{"type":"MultiPolygon","coordinates":[[[[-122.588897,45.507158],[-122.586332,45.506309],[-122.588879,45.506303],[-122.588897,45.507158]]],[[[-122.619994,45.523045],[-122.579056,45.522781],[-122.578679,45.504821],[-122.585255,45.505379],[-122.585265,45.507895],[-122.588945,45.508991],[-122.597386,45.509328],[-122.597726,45.506714],[-122.601671,45.505355],[-122.619041,45.505276],[-122.619994,45.523045]]]]}},{"type":"Feature","properties":{"zip":"97236"},"geometry":{"type":"Polygon","coordinates":[[[-122.490353,45.462533],[-122.537618,45.461243],[-122.535749,45.474032],[-122.537685,45.47478],[-122.537698,45.490802],[-122.540261,45.490802],[-122.537661,45.494443],[-122.537683,45.504093],[-122.496624,45.504572],[-122.493984,45.508732],[-122.488879,45.508732],[-122.488743,45.504584],[-122.475593,45.504564],[-122.475555,45.494454],[-122.482943,45.493571],[-122.480734,45.484616],[-122.48517,45.484656],[-122.485312,45.475582],[-122.49323,45.475626],[-122.493501,45.473377],[-122.496724,45.473276],[-122.496732,45.470751],[-122.491107,45.468704],[-122.490353,45.462533]]]}},{"type":"Feature","properties":{"zip":"97024"},"geometry":{"type":"Polygon","coordinates":[[[-122.423877,45.536353],[-122.427474,45.534258],[-122.433654,45.533297],[-122.433621,45.527827],[-122.45513,45.526671],[-122.458286,45.534385],[-122.456627,45.545033],[-122.477183,45.545984],[-122.477155,45.548161],[-122.456792,45.549985],[-122.456367,45.553468],[-122.459871,45.556594],[-122.458579,45.560333],[-122.416929,45.566697],[-122.416879,45.56085],[-122.423165,45.56045],[-122.423185,45.551679],[-122.430956,45.548102],[-122.419765,45.547546],[-122.42148,45.542943],[-122.425111,45.542948],[-122.423877,45.536353]]]}},{"type":"Feature","properties":{"zip":"97030"},"geometry":{"type":"Polygon","coordinates":[[[-122.410244,45.52433],[-122.410577,45.519049],[-122.401138,45.519066],[-122.400794,45.516664],[-122.398405,45.516298],[-122.398418,45.519069],[-122.386881,45.519034],[-122.386534,45.510294],[-122.390882,45.508345],[-122.385445,45.502143],[-122.384878,45.498732],[-122.387388,45.501709],[-122.387004,45.49629],[-122.389814,45.496315],[-122.389777,45.498436],[-122.390927,45.496567],[-122.430228,45.497983],[-122.434593,45.495243],[-122.434611,45.497174],[-122.441953,45.494831],[-122.440492,45.496565],[-122.444773,45.497117],[-122.445369,45.494266],[-122.44702,45.497104],[-122.456703,45.497003],[-122.455867,45.489312],[-122.467605,45.488597],[-122.482949,45.491962],[-122.482943,45.493571],[-122.475555,45.494454],[-122.475593,45.504564],[-122.467888,45.504956],[-122.467977,45.511739],[-122.460322,45.511832],[-122.460283,45.516114],[-122.455131,45.514988],[-122.453714,45.527089],[-122.413133,45.527719],[-122.413142,45.52431],[-122.410244,45.52433]]]}},{"type":"Feature","properties":{"zip":"97006"},"geometry":{"type":"MultiPolygon","coordinates":[[[[-122.841918,45.488429],[-122.840885,45.487605],[-122.841931,45.487592],[-122.841918,45.488429]]],[[[-122.855909,45.551781],[-122.856041,45.549941],[-122.856831,45.550098],[-122.855909,45.551781]]],[[[-122.853663,45.552114],[-122.857406,45.552342],[-122.857427,45.554066],[-122.855159,45.553859],[-122.853663,45.552114]]],[[[-122.854629,45.550533],[-122.847454,45.551259],[-122.849422,45.548624],[-122.844753,45.549195],[-122.840886,45.545847],[-122.848162,45.541561],[-122.839414,45.54477],[-122.824497,45.542768],[-122.824453,45.534217],[-122.837367,45.531148],[-122.826895,45.526412],[-122.825373,45.52469],[-122.827658,45.523236],[-122.82418,45.523234],[-122.824742,45.521428],[-122.815971,45.519959],[-122.828301,45.500846],[-122.826126,45.492814],[-122.832579,45.493252],[-122.832798,45.490376],[-122.826111,45.489394],[-122.902211,45.497268],[-122.902129,45.499478],[-122.899312,45.497364],[-122.899391,45.500607],[-122.902132,45.500638],[-122.899625,45.529157],[-122.894833,45.529166],[-122.89022,45.538565],[-122.882749,45.53533],[-122.867476,45.534205],[-122.867553,45.541975],[-122.856065,45.537673],[-122.854629,45.550533]],[[-122.896171,45.525932],[-122.896594,45.526721],[-122.898145,45.526691],[-122.896171,45.525932]]]]}},{"type":"Feature","properties":{"zip":"97224"},"geometry":{"type":"Polygon","coordinates":[[[-122.772133,45.393464],[-122.776353,45.397913],[-122.783184,45.398688],[-122.811635,45.389222],[-122.8162,45.390162],[-122.822229,45.395912],[-122.837235,45.396531],[-122.840405,45.393333],[-122.835806,45.395119],[-122.835618,45.391928],[-122.829842,45.389673],[-122.829832,45.386905],[-122.841199,45.389239],[-122.851883,45.388272],[-122.843745,45.393],[-122.841501,45.405822],[-122.846736,45.405817],[-122.846653,45.412445],[-122.851668,45.412395],[-122.851847,45.421032],[-122.848519,45.421058],[-122.845031,45.416543],[-122.839673,45.41749],[-122.838809,45.420442],[-122.826416,45.419889],[-122.826346,45.418136],[-122.810986,45.419117],[-122.812804,45.415713],[-122.810086,45.415976],[-122.81022,45.414264],[-122.809256,45.417556],[-122.805611,45.418827],[-122.770288,45.419881],[-122.757813,45.418792],[-122.753782,45.415172],[-122.76292,45.424951],[-122.754137,45.418194],[-122.749046,45.418222],[-122.749067,45.415237],[-122.744021,45.415311],[-122.743942,45.402702],[-122.747247,45.396382],[-122.743848,45.396544],[-122.743929,45.393047],[-122.746125,45.39047],[-122.754247,45.385712],[-122.760511,45.386077],[-122.764441,45.387329],[-122.764422,45.393219],[-122.767885,45.392968],[-122.768811,45.395231],[-122.772133,45.393464]]]}},{"type":"Feature","properties":{"zip":"97008"},"geometry":{"type":"Polygon","coordinates":[[[-122.779021,45.471613],[-122.776782,45.473289],[-122.773876,45.47196],[-122.774727,45.471417],[-122.775339,45.470288],[-122.773648,45.470858],[-122.771246,45.466055],[-122.773886,45.467007],[-122.774258,45.462012],[-122.778904,45.463468],[-122.784423,45.451477],[-122.784507,45.457785],[-122.785968,45.458431],[-122.785054,45.452219],[-122.787305,45.448495],[-122.825971,45.43825],[-122.825978,45.444616],[-122.829599,45.446803],[-122.825988,45.447608],[-122.82561,45.473739],[-122.828789,45.474652],[-122.827167,45.476159],[-122.821582,45.474268],[-122.821575,45.476486],[-122.807107,45.476493],[-122.806143,45.472094],[-122.805479,45.476473],[-122.790281,45.476642],[-122.78663,45.469379],[-122.785165,45.474465],[-122.779021,45.471613]]]}},{"type":"Feature","properties":{"zip":"97267"},"geometry":{"type":"Polygon","coordinates":[[[-122.589989,45.424175],[-122.577613,45.422001],[-122.577203,45.424081],[-122.573521,45.41351],[-122.576911,45.412626],[-122.57586,45.410669],[-122.577866,45.410691],[-122.578391,45.407194],[-122.576121,45.407194],[-122.577074,45.402741],[-122.572393,45.401916],[-122.573975,45.397787],[-122.598119,45.404032],[-122.603002,45.400203],[-122.599895,45.399052],[-122.597027,45.401601],[-122.594166,45.399531],[-122.604261,45.390608],[-122.60228,45.388996],[-122.608172,45.385054],[-122.607481,45.381877],[-122.614497,45.379482],[-122.621237,45.38027],[-122.627784,45.392749],[-122.657273,45.410108],[-122.655605,45.422341],[-122.623704,45.421096],[-122.623008,45.425446],[-122.630345,45.431596],[-122.612259,45.422126],[-122.60352,45.420375],[-122.589989,45.424175]]]}},{"type":"Feature","properties":{"zip":"97070"},"geometry":{"type":"Polygon","coordinates":[[[-122.851637,45.287443],[-122.846189,45.28713],[-122.846593,45.301405],[-122.843826,45.302586],[-122.841627,45.302587],[-122.841717,45.299842],[-122.827957,45.300549],[-122.816025,45.2934],[-122.80839,45.298168],[-122.809915,45.302792],[-122.802428,45.317321],[-122.785891,45.316129],[-122.786266,45.33182],[-122.778326,45.333553],[-122.778262,45.338241],[-122.773162,45.338243],[-122.773691,45.340217],[-122.794032,45.338943],[-122.795069,45.344455],[-122.784845,45.344504],[-122.784837,45.340429],[-122.769163,45.340354],[-122.764273,45.353737],[-122.761894,45.35373],[-122.76161,45.348538],[-122.752554,45.348497],[-122.752501,45.346562],[-122.757657,45.346557],[-122.757729,45.343117],[-122.759786,45.343131],[-122.759818,45.335548],[-122.754155,45.335593],[-122.75407,45.331971],[-122.746878,45.331998],[-122.722743,45.357283],[-122.722704,45.340863],[-122.714582,45.331964],[-122.714582,45.324096],[-122.706203,45.322553],[-122.706195,45.317494],[-122.691953,45.317436],[-122.690688,45.301417],[-122.69282,45.30029],[-122.708468,45.296146],[-122.725956,45.303154],[-122.743805,45.300309],[-122.744165,45.282989],[-122.765914,45.283224],[-122.769311,45.284247],[-122.76927,45.291537],[-122.788678,45.292001],[-122.802574,45.284481],[-122.829063,45.279073],[-122.846912,45.261218],[-122.856645,45.259617],[-122.859695,45.266018],[-122.854301,45.266495],[-122.858528,45.274087],[-122.860353,45.273577],[-122.861752,45.280237],[-122.86482,45.280237],[-122.86482,45.28304],[-122.862083,45.28304],[-122.862746,45.288277],[-122.859657,45.292366],[-122.854305,45.293261],[-122.851637,45.287443]]]}},{"type":"Feature","properties":{"zip":"97140"},"geometry":{"type":"Polygon","coordinates":[[[-122.908887,45.332286],[-122.924494,45.331725],[-122.925399,45.334672],[-122.928556,45.334669],[-122.928533,45.34629],[-122.939203,45.346361],[-122.940565,45.364522],[-122.937723,45.367671],[-122.941219,45.371231],[-122.939304,45.374439],[-122.942481,45.379055],[-122.949387,45.375872],[-122.949111,45.390793],[-122.945032,45.393071],[-122.939321,45.392565],[-122.931846,45.397445],[-122.922278,45.406332],[-122.920942,45.414981],[-122.907885,45.407467],[-122.903733,45.410023],[-122.896266,45.408438],[-122.892652,45.401276],[-122.9044,45.40164],[-122.90436,45.397235],[-122.898968,45.393751],[-122.893746,45.396071],[-122.900305,45.397873],[-122.893092,45.399417],[-122.89049,45.395988],[-122.875348,45.406498],[-122.866557,45.408019],[-122.867246,45.411176],[-122.858723,45.420339],[-122.858719,45.425847],[-122.853466,45.426371],[-122.851668,45.412395],[-122.846653,45.412445],[-122.846736,45.405817],[-122.841501,45.405822],[-122.843745,45.393],[-122.851883,45.388272],[-122.840747,45.389204],[-122.830886,45.386342],[-122.829193,45.388785],[-122.835514,45.391804],[-122.835666,45.395015],[-122.840248,45.394563],[-122.837235,45.396531],[-122.822011,45.395818],[-122.818467,45.392055],[-122.818033,45.385055],[-122.809076,45.369027],[-122.800557,45.369861],[-122.799038,45.363993],[-122.794428,45.364134],[-122.793442,45.358128],[-122.795559,45.353309],[-122.783633,45.35365],[-122.784978,45.344493],[-122.795069,45.344455],[-122.794032,45.338943],[-122.773691,45.340217],[-122.773162,45.338243],[-122.778262,45.338241],[-122.778326,45.333553],[-122.786266,45.33182],[-122.785891,45.316129],[-122.802428,45.317321],[-122.809915,45.302792],[-122.80839,45.298168],[-122.81591,45.293404],[-122.827957,45.300549],[-122.841717,45.299842],[-122.841627,45.302587],[-122.843826,45.302586],[-122.846593,45.301405],[-122.846189,45.28713],[-122.851637,45.287443],[-122.854305,45.293261],[-122.856437,45.293174],[-122.867925,45.284668],[-122.868009,45.317376],[-122.908866,45.317128],[-122.908887,45.332286]]]}},{"type":"Feature","properties":{"zip":"97217"},"geometry":{"type":"Polygon","coordinates":[[[-122.705426,45.587823],[-122.707919,45.589352],[-122.705408,45.59104],[-122.724111,45.595993],[-122.719555,45.600474],[-122.736455,45.604031],[-122.762461,45.615357],[-122.75907,45.617994],[-122.761458,45.620052],[-122.759234,45.62204],[-122.761504,45.636266],[-122.755859,45.636134],[-122.757277,45.633241],[-122.750012,45.629155],[-122.741623,45.628323],[-122.739771,45.629977],[-122.752117,45.636483],[-122.743664,45.636403],[-122.743446,45.638342],[-122.763775,45.654424],[-122.76241,45.656438],[-122.738109,45.644138],[-122.713309,45.637438],[-122.675001,45.618025],[-122.643907,45.609739],[-122.642565,45.600418],[-122.678224,45.602949],[-122.668096,45.595565],[-122.662327,45.595703],[-122.667691,45.593185],[-122.664336,45.586781],[-122.66781,45.58293],[-122.667626,45.580906],[-122.661329,45.578897],[-122.66809,45.58068],[-122.666743,45.553318],[-122.679265,45.554637],[-122.690776,45.552787],[-122.676964,45.544531],[-122.677887,45.542603],[-122.691207,45.552368],[-122.68273,45.54306],[-122.684869,45.542428],[-122.693884,45.554205],[-122.701319,45.55544],[-122.702642,45.552166],[-122.730522,45.564932],[-122.720249,45.573964],[-122.708177,45.574982],[-122.708959,45.578225],[-122.712394,45.578192],[-122.712392,45.580826],[-122.708612,45.580821],[-122.705426,45.587823]]]}},{"type":"Feature","properties":{"zip":"97213"},"geometry":{"type":"Polygon","coordinates":[[[-122.579056,45.522781],[-122.619994,45.523045],[-122.621363,45.526318],[-122.618311,45.529797],[-122.622932,45.533049],[-122.620252,45.532607],[-122.620416,45.552852],[-122.57867,45.552428],[-122.579038,45.533747],[-122.58098,45.53361],[-122.579024,45.532407],[-122.579056,45.522781]]]}},{"type":"Feature","properties":{"zip":"97233"},"geometry":{"type":"MultiPolygon","coordinates":[[[[-122.498323,45.523176],[-122.497742,45.522364],[-122.498327,45.522357],[-122.498323,45.523176]]],[[[-122.537767,45.522494],[-122.500888,45.522274],[-122.500076,45.523937],[-122.49901,45.522214],[-122.455179,45.521549],[-122.453692,45.524178],[-122.453655,45.519136],[-122.455131,45.514988],[-122.460283,45.516114],[-122.460322,45.511832],[-122.467977,45.511739],[-122.467888,45.504956],[-122.488743,45.504584],[-122.488879,45.508732],[-122.493984,45.508732],[-122.496624,45.504572],[-122.537683,45.504093],[-122.537767,45.522494]]]]}},{"type":"Feature","properties":{"zip":"97209"},"geometry":{"type":"Polygon","coordinates":[[[-122.695041,45.523255],[-122.696854,45.537032],[-122.692972,45.53618],[-122.694897,45.539131],[-122.692338,45.539038],[-122.696076,45.541682],[-122.692003,45.544869],[-122.667785,45.526766],[-122.667093,45.523028],[-122.69013,45.522164],[-122.695041,45.523255]],[[-122.677643,45.529881],[-122.680247,45.527273],[-122.677595,45.527321],[-122.677643,45.529881]]]}},{"type":"Feature","properties":{"zip":"97221"},"geometry":{"type":"Polygon","coordinates":[[[-122.743859,45.516665],[-122.720892,45.520439],[-122.7193,45.514231],[-122.715469,45.513194],[-122.717345,45.511767],[-122.716012,45.510549],[-122.701405,45.516779],[-122.704908,45.516948],[-122.704293,45.520896],[-122.703569,45.517404],[-122.700781,45.519425],[-122.699525,45.517371],[-122.709997,45.507401],[-122.719351,45.507349],[-122.719351,45.50494],[-122.712983,45.504784],[-122.711121,45.493159],[-122.71442,45.491129],[-122.711951,45.489938],[-122.713078,45.484834],[-122.715357,45.484604],[-122.710265,45.481937],[-122.719388,45.485379],[-122.720564,45.483469],[-122.712955,45.481842],[-122.716297,45.480547],[-122.712031,45.476137],[-122.743706,45.476443],[-122.743804,45.499822],[-122.738596,45.504766],[-122.743785,45.505017],[-122.743859,45.516665]]]}},{"type":"Feature","properties":{"zip":"97205"},"geometry":{"type":"Polygon","coordinates":[[[-122.680411,45.515737],[-122.690423,45.519939],[-122.691373,45.517758],[-122.702653,45.519407],[-122.702673,45.51848],[-122.703569,45.517404],[-122.702993,45.518539],[-122.704293,45.520896],[-122.704908,45.516948],[-122.701405,45.516779],[-122.716012,45.510549],[-122.717345,45.511767],[-122.715469,45.513194],[-122.7193,45.514231],[-122.720892,45.520439],[-122.704867,45.524146],[-122.676472,45.523062],[-122.680411,45.515737]]]}},{"type":"Feature","properties":{"zip":"97005"},"geometry":{"type":"Polygon","coordinates":[[[-122.813403,45.504125],[-122.80632,45.501873],[-122.802103,45.503438],[-122.776951,45.493819],[-122.776871,45.49108],[-122.774753,45.491253],[-122.775834,45.488091],[-122.771027,45.486475],[-122.773069,45.47249],[-122.779021,45.471613],[-122.785165,45.474465],[-122.78663,45.469379],[-122.790281,45.476642],[-122.805479,45.476473],[-122.805244,45.47215],[-122.807107,45.476493],[-122.821575,45.476486],[-122.821582,45.474268],[-122.826078,45.474374],[-122.826109,45.478529],[-122.8294,45.479119],[-122.829933,45.481914],[-122.826112,45.481831],[-122.826111,45.489557],[-122.832798,45.490376],[-122.832579,45.493252],[-122.826126,45.492814],[-122.828301,45.500846],[-122.815711,45.52239],[-122.802686,45.517455],[-122.804299,45.514235],[-122.813284,45.510983],[-122.811319,45.508409],[-122.813403,45.504125]]]}},{"type":"Feature","properties":{"zip":"97222"},"geometry":{"type":"Polygon","coordinates":[[[-122.578931,45.449398],[-122.582363,45.440901],[-122.577613,45.422001],[-122.59264,45.424389],[-122.593274,45.422516],[-122.600832,45.422523],[-122.60352,45.420375],[-122.612259,45.422126],[-122.630345,45.431596],[-122.623008,45.425446],[-122.623704,45.421096],[-122.655605,45.422341],[-122.649304,45.42944],[-122.651305,45.436541],[-122.645205,45.441641],[-122.652605,45.445741],[-122.660979,45.457819],[-122.65332,45.458292],[-122.65269,45.455395],[-122.646475,45.455394],[-122.647043,45.458697],[-122.630043,45.462856],[-122.629803,45.465075],[-122.624815,45.462296],[-122.6086,45.46151],[-122.60826,45.457235],[-122.604588,45.455938],[-122.584617,45.457041],[-122.584081,45.45526],[-122.579079,45.455264],[-122.579024,45.451798],[-122.582587,45.451821],[-122.582547,45.449422],[-122.578931,45.449398]]]}},{"type":"Feature","properties":{"zip":"97089"},"geometry":{"type":"Polygon","coordinates":[[[-122.398394,45.432881],[-122.398906,45.419288],[-122.408513,45.417598],[-122.405327,45.412518],[-122.413203,45.402511],[-122.413525,45.396215],[-122.409177,45.3962],[-122.410934,45.393085],[-122.418915,45.393055],[-122.419044,45.394932],[-122.421455,45.393318],[-122.425423,45.393169],[-122.442082,45.383046],[-122.468496,45.384236],[-122.470564,45.384987],[-122.471313,45.391186],[-122.475736,45.392538],[-122.47985,45.39062],[-122.490295,45.393939],[-122.497269,45.3928],[-122.504097,45.396495],[-122.513788,45.409314],[-122.50692,45.409271],[-122.507895,45.410528],[-122.504827,45.414394],[-122.502625,45.414188],[-122.506406,45.409932],[-122.502139,45.408425],[-122.485659,45.411922],[-122.479823,45.410857],[-122.479824,45.420003],[-122.484078,45.420053],[-122.483762,45.425658],[-122.485745,45.426259],[-122.485758,45.428539],[-122.482388,45.428548],[-122.48382,45.43202],[-122.480356,45.432046],[-122.480499,45.436086],[-122.485771,45.43582],[-122.485754,45.438556],[-122.480395,45.437793],[-122.48254,45.449023],[-122.480017,45.449024],[-122.480978,45.456177],[-122.477303,45.456191],[-122.480558,45.460516],[-122.486139,45.460461],[-122.486536,45.458464],[-122.486584,45.461132],[-122.389346,45.4613],[-122.381899,45.453703],[-122.385488,45.444448],[-122.383108,45.439718],[-122.391772,45.439822],[-122.391804,45.432769],[-122.398394,45.432881]],[[-122.421023,45.394113],[-122.424634,45.393906],[-122.425736,45.393442],[-122.421023,45.394113]]]}},{"type":"Feature","properties":{"zip":"97202"},"geometry":{"type":"Polygon","coordinates":[[[-122.665853,45.511539],[-122.661868,45.504895],[-122.65372,45.504854],[-122.651419,45.506831],[-122.649425,45.504837],[-122.618039,45.505276],[-122.619819,45.489548],[-122.61779,45.488826],[-122.620563,45.487411],[-122.618807,45.482763],[-122.620581,45.48135],[-122.618476,45.481341],[-122.619634,45.463017],[-122.624815,45.462296],[-122.629803,45.465075],[-122.630043,45.462856],[-122.647043,45.458697],[-122.647272,45.455246],[-122.65269,45.455395],[-122.65332,45.458292],[-122.660979,45.457819],[-122.664883,45.461511],[-122.669145,45.484237],[-122.665115,45.50293],[-122.670417,45.51307],[-122.665853,45.511539]]]}},{"type":"Feature","properties":{"zip":"97230"},"geometry":{"type":"Polygon","coordinates":[[[-122.538193,45.530241],[-122.536753,45.561046],[-122.548642,45.563974],[-122.535439,45.562887],[-122.536075,45.565081],[-122.531944,45.567745],[-122.546778,45.573485],[-122.549497,45.570963],[-122.544811,45.576734],[-122.586726,45.597488],[-122.586006,45.60474],[-122.479315,45.579761],[-122.453891,45.567312],[-122.441062,45.564169],[-122.458579,45.560333],[-122.459871,45.556594],[-122.456367,45.553468],[-122.45728,45.549767],[-122.477155,45.548161],[-122.477183,45.545984],[-122.456627,45.545033],[-122.458286,45.534385],[-122.456486,45.533522],[-122.457216,45.527898],[-122.453714,45.527089],[-122.455179,45.521549],[-122.49901,45.522214],[-122.500076,45.523937],[-122.500888,45.522274],[-122.53919,45.522506],[-122.537749,45.526293],[-122.540923,45.52629],[-122.54086,45.529914],[-122.538193,45.530241]],[[-122.498327,45.522357],[-122.497733,45.523161],[-122.498323,45.523176],[-122.498327,45.522357]]]}},{"type":"Feature","properties":{"zip":"97266"},"geometry":{"type":"Polygon","coordinates":[[[-122.563799,45.504393],[-122.542194,45.50414],[-122.539971,45.506151],[-122.539988,45.504117],[-122.537683,45.504093],[-122.537661,45.494443],[-122.540261,45.490802],[-122.537698,45.490802],[-122.537685,45.47478],[-122.535749,45.474032],[-122.537618,45.461243],[-122.582261,45.46152],[-122.579043,45.463465],[-122.581697,45.466548],[-122.579044,45.466547],[-122.58152,45.46957],[-122.579042,45.470039],[-122.578948,45.482803],[-122.581167,45.483663],[-122.578923,45.485218],[-122.578679,45.504821],[-122.565945,45.504437],[-122.56516,45.507943],[-122.563799,45.504393]]]}},{"type":"Feature","properties":{"zip":"97201"},"geometry":{"type":"Polygon","coordinates":[[[-122.713089,45.506818],[-122.701982,45.513399],[-122.69991,45.519224],[-122.691373,45.517758],[-122.690423,45.519939],[-122.687118,45.519065],[-122.687917,45.516973],[-122.670417,45.51307],[-122.665103,45.501184],[-122.678699,45.500845],[-122.686144,45.497957],[-122.684223,45.502132],[-122.691934,45.502762],[-122.695621,45.49861],[-122.698766,45.498608],[-122.712101,45.501632],[-122.712983,45.504784],[-122.719351,45.50494],[-122.719351,45.507349],[-122.713089,45.506818]]]}},{"type":"Feature","properties":{"zip":"97123"},"geometry":{"type":"MultiPolygon","coordinates":[[[[-123.029514,45.520514],[-123.031445,45.521495],[-123.031885,45.524056],[-123.029519,45.524067],[-123.029514,45.520514]]],[[[-122.995723,45.50155],[-123.000485,45.496833],[-123.003326,45.498687],[-123.005685,45.496239],[-123.015937,45.496557],[-123.020136,45.49432],[-123.02102,45.491084],[-123.036543,45.494392],[-123.03744,45.496012],[-123.034076,45.498713],[-123.036462,45.500706],[-123.036221,45.498524],[-123.038976,45.498752],[-123.03539,45.506004],[-123.039922,45.507599],[-123.039883,45.513758],[-123.036488,45.513727],[-123.036502,45.519591],[-123.016655,45.519972],[-123.018186,45.522679],[-123.008156,45.522306],[-123.005453,45.525361],[-123.003369,45.52534],[-123.003386,45.52253],[-122.975504,45.523794],[-122.975537,45.522222],[-122.949795,45.519937],[-122.913258,45.520451],[-122.899627,45.515234],[-122.901918,45.51371],[-122.902132,45.500638],[-122.899391,45.500607],[-122.899312,45.497364],[-122.901559,45.497407],[-122.900667,45.499475],[-122.902211,45.497268],[-122.912239,45.498361],[-122.91236,45.49609],[-122.918024,45.496016],[-122.919119,45.493874],[-122.912548,45.494225],[-122.915598,45.49356],[-122.915673,45.491126],[-122.912552,45.490046],[-122.919503,45.492177],[-122.93786,45.486483],[-122.932575,45.478606],[-122.918286,45.478293],[-122.924489,45.472779],[-122.931203,45.47247],[-122.936554,45.463475],[-122.933349,45.46314],[-122.932622,45.453328],[-122.942232,45.453326],[-122.947479,45.448977],[-122.929705,45.446934],[-122.930666,45.443755],[-122.923436,45.4393],[-122.904166,45.434611],[-122.903949,45.425606],[-122.906855,45.420267],[-122.917227,45.423039],[-122.922177,45.413098],[-122.922278,45.406332],[-122.931846,45.397445],[-122.939321,45.392565],[-122.948934,45.390913],[-122.949597,45.38547],[-122.954119,45.385419],[-122.95648,45.38253],[-122.959317,45.386588],[-122.965449,45.380703],[-122.971818,45.380718],[-122.970756,45.376949],[-122.975324,45.377049],[-122.975469,45.371084],[-122.985742,45.365045],[-122.991519,45.36499],[-122.99152,45.36282],[-123.02494,45.366318],[-123.039483,45.374716],[-123.042323,45.380035],[-123.053121,45.387519],[-123.058483,45.387629],[-123.061203,45.390326],[-123.063624,45.383415],[-123.067147,45.383191],[-123.06837,45.379346],[-123.081587,45.378248],[-123.091742,45.380118],[-123.077727,45.387266],[-123.071441,45.38633],[-123.066193,45.391068],[-123.063583,45.399735],[-123.06519,45.402358],[-123.069481,45.401046],[-123.067933,45.397772],[-123.066104,45.398196],[-123.066356,45.395439],[-123.072528,45.393267],[-123.084263,45.400628],[-123.091242,45.40096],[-123.099444,45.396539],[-123.103117,45.404355],[-123.062887,45.40461],[-123.063513,45.436289],[-123.052927,45.437433],[-123.052894,45.43362],[-123.04636,45.430759],[-123.034133,45.433785],[-123.036644,45.434577],[-123.033547,45.436048],[-123.034071,45.43902],[-123.030287,45.440444],[-123.022054,45.44041],[-123.02251,45.43634],[-123.017153,45.44016],[-123.002701,45.435283],[-122.994721,45.434995],[-122.9852,45.441092],[-122.988079,45.44314],[-122.990547,45.44076],[-123.004202,45.447389],[-122.990936,45.449862],[-122.992655,45.465088],[-122.991296,45.500186],[-122.995723,45.50155]]]]}},{"type":"Feature","properties":{"zip":"97206"},"geometry":{"type":"Polygon","coordinates":[[[-122.620776,45.462676],[-122.618039,45.505276],[-122.601671,45.505355],[-122.597726,45.506714],[-122.597386,45.509328],[-122.588945,45.508991],[-122.585265,45.507895],[-122.585255,45.505379],[-122.578679,45.504821],[-122.578923,45.485218],[-122.581167,45.483663],[-122.578948,45.482803],[-122.579042,45.470039],[-122.58152,45.46957],[-122.579044,45.466547],[-122.581697,45.466548],[-122.579043,45.463465],[-122.582261,45.46152],[-122.57905,45.461518],[-122.579083,45.456947],[-122.581134,45.45527],[-122.584617,45.457041],[-122.604588,45.455938],[-122.60826,45.457235],[-122.6086,45.46151],[-122.620776,45.462676]],[[-122.588897,45.507158],[-122.586332,45.506309],[-122.586296,45.507157],[-122.588897,45.507158]]]}},{"type":"Feature","properties":{"zip":"97211"},"geometry":{"type":"Polygon","coordinates":[[[-122.666743,45.553318],[-122.66809,45.58068],[-122.661338,45.579189],[-122.667668,45.580966],[-122.667389,45.585331],[-122.664336,45.586781],[-122.667767,45.592662],[-122.662327,45.595703],[-122.668096,45.595565],[-122.678224,45.602949],[-122.642565,45.600418],[-122.643907,45.609739],[-122.607706,45.608139],[-122.586006,45.60474],[-122.586726,45.597488],[-122.544811,45.576734],[-122.550675,45.571632],[-122.563217,45.577961],[-122.563573,45.583541],[-122.597449,45.59769],[-122.632366,45.600377],[-122.635331,45.599339],[-122.63567,45.595676],[-122.631937,45.587104],[-122.615326,45.586276],[-122.616538,45.578711],[-122.620455,45.578659],[-122.620379,45.571721],[-122.614187,45.570665],[-122.62036,45.568776],[-122.620406,45.551846],[-122.625525,45.551792],[-122.626614,45.55368],[-122.661556,45.55207],[-122.666743,45.553318]]]}},{"type":"Feature","properties":{"zip":"97212"},"geometry":{"type":"Polygon","coordinates":[[[-122.620406,45.551846],[-122.620312,45.535139],[-122.666746,45.535095],[-122.666686,45.539969],[-122.664149,45.539967],[-122.664135,45.541887],[-122.666672,45.541895],[-122.666743,45.553318],[-122.625518,45.553671],[-122.625525,45.551792],[-122.620406,45.551846]]]}},{"type":"Feature","properties":{"zip":"97220"},"geometry":{"type":"Polygon","coordinates":[[[-122.552383,45.522601],[-122.557302,45.523947],[-122.55815,45.526272],[-122.55829,45.522641],[-122.569346,45.522723],[-122.571259,45.524888],[-122.571284,45.522754],[-122.579056,45.522781],[-122.579024,45.532407],[-122.58098,45.53361],[-122.579038,45.533747],[-122.577664,45.56803],[-122.580447,45.565143],[-122.578041,45.570059],[-122.582524,45.573788],[-122.572396,45.58111],[-122.580297,45.584218],[-122.580139,45.584391],[-122.560394,45.57816],[-122.561139,45.576737],[-122.549497,45.570963],[-122.546778,45.573485],[-122.531944,45.567745],[-122.536075,45.565081],[-122.535439,45.562887],[-122.548642,45.563974],[-122.536753,45.561046],[-122.537636,45.533574],[-122.538193,45.530241],[-122.54086,45.529914],[-122.540923,45.52629],[-122.537749,45.526293],[-122.537745,45.524047],[-122.552383,45.522601]]]}},{"type":"Feature","properties":{"zip":"97007"},"geometry":{"type":"Polygon","coordinates":[[[-122.82561,45.473739],[-122.825988,45.447608],[-122.829599,45.446803],[-122.825978,45.444616],[-122.825971,45.43825],[-122.816966,45.441103],[-122.82097,45.435758],[-122.827669,45.428862],[-122.83414,45.426715],[-122.858719,45.425847],[-122.858723,45.420339],[-122.867246,45.411176],[-122.866557,45.408019],[-122.875348,45.406498],[-122.89049,45.395988],[-122.892897,45.396696],[-122.892747,45.399353],[-122.899714,45.398209],[-122.90061,45.396936],[-122.893746,45.396071],[-122.899114,45.393723],[-122.903043,45.395062],[-122.905236,45.401091],[-122.892652,45.401276],[-122.895713,45.407972],[-122.903733,45.410023],[-122.907885,45.407467],[-122.920942,45.414981],[-122.917227,45.423039],[-122.906855,45.420267],[-122.903949,45.425606],[-122.904166,45.434611],[-122.923436,45.4393],[-122.930666,45.443755],[-122.929705,45.446934],[-122.947479,45.448977],[-122.942232,45.453326],[-122.932622,45.453328],[-122.933349,45.46314],[-122.936554,45.463475],[-122.931203,45.47247],[-122.924489,45.472779],[-122.918286,45.478293],[-122.932575,45.478606],[-122.93786,45.486483],[-122.919503,45.492177],[-122.912552,45.490046],[-122.915673,45.491126],[-122.915598,45.49356],[-122.912548,45.494225],[-122.919119,45.493874],[-122.918024,45.496016],[-122.91236,45.49609],[-122.912239,45.498361],[-122.826111,45.489394],[-122.826112,45.481831],[-122.829933,45.481914],[-122.8294,45.479119],[-122.826109,45.478529],[-122.828789,45.474652],[-122.82561,45.473739]],[[-122.841918,45.488429],[-122.840885,45.487605],[-122.84078,45.488441],[-122.841918,45.488429]]]}}]};
+
+let highlightedZip = null;
+let map;
+let zipPolygonIds = [];   // zips that have real boundary polygons
+let zipPointZips = [];    // zips that fall back to a point marker
+
+// Fill/outline colors keyed by ZIP status — this is what makes the
+// searched zone show its real classification.
+const STATUS_COLORS = {
+  'Bookable':      { fillColor: '#2E7D46', color: '#1F5C34' },
+  'Jump-Ball':     { fillColor: '#C9971C', color: '#96721A' },
+  'Hard Rule':     { fillColor: '#C0392B', color: '#8E2A20' },
+  'Do-Not-Serve':  { fillColor: '#C0392B', color: '#8E2A20' },
+  'Special Routing': { fillColor: '#4B3F8F', color: '#332A66' },
+  'Outside Service Area': { fillColor: '#8FB4D9', color: '#6E97C2' },
+};
+const OUTSIDE_COLOR = STATUS_COLORS['Outside Service Area']; // no status on file — outside service area
+const NEUTRAL = { fillColor: 'rgba(0,0,0,0)', color: '#9DB3C7' }; // default — no color until looked up
+
+function colorsFor(zip) {
+  const entry = zipStatuses[zip];
+  return (entry && STATUS_COLORS[entry.status]) ? STATUS_COLORS[entry.status] : OUTSIDE_COLOR;
+}
+
+function statusLabel(zip) {
+  const entry = zipStatuses[zip];
+  if (!entry || !STATUS_COLORS[entry.status]) return 'Outside Service Area';
+  return entry.status;
+}
+
+/* --------------------------------------------------------------------------
+   ROAD COLORS
+   The Liberty basemap's roads default to orange/yellow. This recolors just
+   the road layers to grey/light-grey (matching a Google-Maps-style look)
+   while leaving the parks and water exactly as Liberty styles them.
+   -------------------------------------------------------------------------- */
+function applyRoadColors() {
+  try {
+    const casingLayers = [
+      'road_motorway_casing', 'road_motorway_link_casing', 'road_trunk_primary_casing',
+      'road_secondary_tertiary_casing', 'road_link_casing',
+      'bridge_motorway_casing', 'bridge_motorway_link_casing', 'bridge_trunk_primary_casing',
+      'bridge_secondary_tertiary_casing', 'bridge_link_casing',
+      'tunnel_motorway_casing', 'tunnel_motorway_link_casing', 'tunnel_trunk_primary_casing',
+      'tunnel_secondary_tertiary_casing', 'tunnel_link_casing',
+    ];
+    const innerLayers = [
+      'road_motorway', 'road_motorway_link', 'road_trunk_primary', 'road_secondary_tertiary', 'road_link',
+      'bridge_motorway', 'bridge_motorway_link', 'bridge_trunk_primary', 'bridge_secondary_tertiary', 'bridge_link',
+      'tunnel_motorway', 'tunnel_motorway_link', 'tunnel_trunk_primary', 'tunnel_secondary_tertiary', 'tunnel_link',
+    ];
+    casingLayers.forEach(id => { if (map.getLayer(id)) map.setPaintProperty(id, 'line-color', '#BEBEBE'); });
+    innerLayers.forEach(id => { if (map.getLayer(id)) map.setPaintProperty(id, 'line-color', '#F2F2F2'); });
+  } catch (e) { /* non-fatal */ }
+}
+
+/* --------------------------------------------------------------------------
+   ZIP LAYERS
+   Everything (polygons, fallback points, and their styling) is rendered
+   natively by MapLibre GL — no Leaflet overlay — so there's no separate
+   rendering system to fall out of sync during a drag.
+   -------------------------------------------------------------------------- */
+function buildZipFeatureCollections() {
+  const boundaryByZip = {};
+  ZIP_BOUNDARIES.features.forEach(f => { boundaryByZip[f.properties.zip] = f; });
+
+  const polygonFeatures = [];
+  const pointFeatures = [];
+
+  Object.keys(ZIP_LATLON).forEach(zip => {
+    const boundary = boundaryByZip[zip];
+    if (boundary) {
+      zipPolygonIds.push(zip);
+      polygonFeatures.push({
+        type: 'Feature',
+        id: zip,
+        properties: { zip, fillColor: NEUTRAL.fillColor, lineColor: NEUTRAL.color, lineWidth: 1 },
+        geometry: boundary.geometry,
+      });
+    } else {
+      zipPointZips.push(zip);
+      const [lat, lon] = ZIP_LATLON[zip];
+      pointFeatures.push({
+        type: 'Feature',
+        id: zip,
+        properties: { zip, fillColor: NEUTRAL.fillColor, lineColor: NEUTRAL.color },
+        geometry: { type: 'Point', coordinates: [lon, lat] },
+      });
+    }
+  });
+
+  return {
+    polygons: { type: 'FeatureCollection', features: polygonFeatures },
+    points: { type: 'FeatureCollection', features: pointFeatures },
+  };
+}
+
+function addZipLayers() {
+  const { polygons, points } = buildZipFeatureCollections();
+
+  map.addSource('zip-polygons', { type: 'geojson', data: polygons });
+  map.addSource('zip-points', { type: 'geojson', data: points });
+
+  map.addLayer({
+    id: 'zip-fill', type: 'fill', source: 'zip-polygons',
+    paint: { 'fill-color': ['get', 'fillColor'], 'fill-opacity': 0 },
+  });
+  map.addLayer({
+    id: 'zip-outline', type: 'line', source: 'zip-polygons',
+    paint: { 'line-color': ['get', 'lineColor'], 'line-width': ['get', 'lineWidth'] },
+  });
+  // Dashed highlight outline — filtered to just the currently-searched zip
+  map.addLayer({
+    id: 'zip-highlight-outline', type: 'line', source: 'zip-polygons',
+    paint: { 'line-color': ['get', 'lineColor'], 'line-width': 3, 'line-dasharray': [2, 2] },
+    filter: ['==', ['get', 'zip'], ''],
+  });
+
+  map.addLayer({
+    id: 'zip-points-circle', type: 'circle', source: 'zip-points',
+    paint: {
+      'circle-radius': 7, 'circle-color': ['get', 'fillColor'],
+      'circle-stroke-color': ['get', 'lineColor'], 'circle-stroke-width': 1.5,
+    },
+  });
+  map.addLayer({
+    id: 'zip-points-highlight', type: 'circle', source: 'zip-points',
+    paint: { 'circle-radius': 10, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': ['get', 'lineColor'], 'circle-stroke-width': 3 },
+    filter: ['==', ['get', 'zip'], ''],
+  });
+
+  ['zip-fill', 'zip-points-circle'].forEach(layerId => {
+    map.on('click', layerId, (e) => {
+      const zip = e.features[0].properties.zip;
+      selectZip(zip);
+    });
+    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+  });
+}
+
+function refreshZipStyles() {
+  const polySource = map.getSource('zip-polygons');
+  const pointSource = map.getSource('zip-points');
+  if (!polySource || !pointSource) return;
+
+  const restyle = (zip) => {
+    if (zip === highlightedZip) {
+      const c = colorsFor(zip);
+      return { fillColor: 'rgba(0,0,0,0)', lineColor: c.color, lineWidth: 1 };
+    }
+    return { fillColor: NEUTRAL.fillColor, lineColor: NEUTRAL.color, lineWidth: 1 };
+  };
+
+  const polyData = { type: 'FeatureCollection', features: zipPolygonIds.map(zip => {
+    const boundaryFeature = ZIP_BOUNDARIES.features.find(f => f.properties.zip === zip);
+    return { type: 'Feature', id: zip, properties: { zip, ...restyle(zip) }, geometry: boundaryFeature.geometry };
+  })};
+  const pointData = { type: 'FeatureCollection', features: zipPointZips.map(zip => {
+    const [lat, lon] = ZIP_LATLON[zip];
+    return { type: 'Feature', id: zip, properties: { zip, ...restyle(zip) }, geometry: { type: 'Point', coordinates: [lon, lat] } };
+  })};
+
+  polySource.setData(polyData);
+  pointSource.setData(pointData);
+
+  const filterVal = highlightedZip || '';
+  if (map.getLayer('zip-highlight-outline')) map.setFilter('zip-highlight-outline', ['==', ['get', 'zip'], filterVal]);
+  if (map.getLayer('zip-points-highlight')) map.setFilter('zip-points-highlight', ['==', ['get', 'zip'], filterVal]);
+}
+
+function renderAllMarkerStyles() {
+  refreshZipStyles();
+}
+
+function clearHighlight() {
+  highlightedZip = null;
+  refreshZipStyles();
+}
+
+// Colors the searched zip by its real status — the only time any color
+// appears on the map, per the "only show status when looking it up" design.
+function highlightZip(zip) {
+  highlightedZip = zip;
+  refreshZipStyles();
+}
+
+function polygonBounds(geometry) {
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+  const scan = (coords) => {
+    if (typeof coords[0] === 'number') {
+      const [lng, lat] = coords;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    } else {
+      coords.forEach(scan);
+    }
+  };
+  scan(geometry.coordinates);
+  return [[minLng, minLat], [maxLng, maxLat]];
+}
+
+// Pans/zooms to a zip without zooming in too tight — enough to see the
+// highlighted zone plus its surroundings, not fill the whole viewport.
+function focusZip(zip) {
+  if (!map) return;
+  highlightZip(zip);
+
+  const boundaryFeature = ZIP_BOUNDARIES.features.find(f => f.properties.zip === zip);
+  if (boundaryFeature) {
+    const bounds = polygonBounds(boundaryFeature.geometry);
+    map.fitBounds(bounds, { padding: 60, maxZoom: 12, duration: 500 });
+  } else if (ZIP_LATLON[zip]) {
+    const [lat, lon] = ZIP_LATLON[zip];
+    map.flyTo({ center: [lon, lat], zoom: 11.5, duration: 500 });
+  }
+}
+
+function initMap() {
+  try {
+    // Native MapLibre GL map — no Leaflet involved, so there's no separate
+    // overlay rendering system that can fall out of sync during a drag.
+    map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tiles.openfreemap.org/styles/liberty',
+      center: [-122.68, 45.47],
+      zoom: 11,
+      attributionControl: true,
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
+    map.on('error', () => document.getElementById('loadNote').style.display = 'block');
+    map.on('load', () => {
+      applyRoadColors();
+      addZipLayers();
+    });
+  } catch (e) {
+    document.getElementById('loadNote').style.display = 'block';
+  }
+}
+
+const zipInput = document.getElementById('zipInput');
+const statusEl = document.getElementById('status');
+const zipStatusResult = document.getElementById('zipStatusResult');
+
+function setStatus(msg, type) {
+  statusEl.textContent = msg;
+  statusEl.className = type || '';
+}
+
+function getZip() {
+  const val = zipInput.value.trim();
+  if (!/^\d{5}$/.test(val)) {
+    setStatus('Enter a valid 5-digit zip code.', 'err');
+    return null;
+  }
+  return val;
+}
+
+// Shared by both the search box and clicking a zone on the map: highlights
+// the zone, pans to it, and fills in the status panel below the button.
+function selectZip(zip) {
+  if (!(zip in ZIP_LATLON)) {
+    setStatus(zip + ' is not on this reference map yet.', 'warn');
+    zipStatusResult.innerHTML = '';
+    return;
+  }
+
+  zipInput.value = zip;
+  setStatus('', '');
+  const entry = zipStatuses[zip];
+  const label = statusLabel(zip);
+  const detail = entry && entry.detail ? entry.detail : '';
+  const tagClass = (entry && STATUS_COLORS[entry.status]) ? entry.status.replace(/ /g, '-') : 'Unknown';
+
+  zipStatusResult.innerHTML =
+    '<div style="margin-top:8px;"><strong>' + zip + '</strong> ' +
+    '<span class="zip-status-tag ' + tagClass + '">' + label + '</span>' +
+    (detail ? '<div class="zip-detail">' + detail + '</div>' : '') +
+    '</div>';
+
+  focusZip(zip);
+}
+
+function checkZipStatus() {
+  const zip = getZip();
+  if (!zip) return;
+  selectZip(zip);
+}
+
+document.getElementById('checkBtn').onclick = checkZipStatus;
+zipInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkZipStatus(); });
+
+function clearZipLookup() {
+  zipInput.value = '';
+  setStatus('', '');
+  zipStatusResult.innerHTML = '';
+  clearHighlight();
+}
+document.getElementById('clearZipBtn').onclick = clearZipLookup;
+
+/* ==========================================================================
+   ADMIN ASSISTANT (MPS / PSDW Template Generator) + TEMPLATE MANAGER
+   ==========================================================================
+   This section implements the ChatGPT-spec "template assistant", rebuilt in
+   JavaScript. It's organized as ONE unified template engine rather than a
+   pile of separate hardcoded message functions — every customer message,
+   account note, and internal note (like the Jump-Ball forward to Rosy)
+   comes from the same editable template list, filled in with real data
+   from the form. This is what makes the Templates tab actually useful:
+   editing a template there changes what gets generated everywhere.
+
+   A few JS concepts used throughout (kept short since they're explained
+   once, here):
+   - const/let   : "const" can't be reassigned; "let" can. Default to const.
+   - function    : a reusable named block of code, like a C# method.
+   - object      : curly-brace {} data, like a lightweight class instance.
+                   e.g. { clientName: "Jamie", petName: "Stella" }
+   - array       : square-bracket [] list of items, like a C# List<T>.
+   - template    : the `backtick string ${variable}` syntax is a "template
+     literal"       literal — JS's version of C#'s $"string {variable}".
+   - ===         : strict equality (like C#'s == for value types).
+   - ?:          : the "ternary" operator: condition ? ifTrue : ifFalse
+   - .filter/.map/.find : array methods that loop over a list and build a
+                   new list (filter/map) or return the first match (find) —
+                   similar to LINQ's Where/Select/FirstOrDefault in C#.
+   ========================================================================== */
+
+// ---- Shows/hides the collapsible Template Manager panel ----
+function toggleTemplateManager() {
+  const panel = document.getElementById('templateManagerPanel');
+  const btn = document.getElementById('tplToggleBtn');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'grid';
+  btn.textContent = isOpen ? 'Manage Templates \u25be' : 'Manage Templates \u25b4';
+  if (!isOpen) renderTemplateList();
+}
+
+// ---- Mode switching: MPS vs PSDW forms, driven by the dropdown ----
+function switchAssistantMode(mode) {
+  document.getElementById('mpsForm').style.display = mode === 'MPS' ? 'block' : 'none';
+  document.getElementById('psdwForm').style.display = mode === 'PSDW' ? 'block' : 'none';
+  document.getElementById('assistantModeSelect').value = mode;
+  document.getElementById('jumpBallOutputSection').style.display = 'none';
+}
+
+/* ==========================================================================
+   ZIP STATUS — seeded from the SW Portland Master SOP
+   ==========================================================================
+   Each zip is stored as an OBJECT (not just a word):
+     { status: 'Bookable' | 'Jump-Ball' | 'Hard Rule' | 'Do-Not-Serve' | 'Special Routing' | 'Unknown',
+       detail: 'Preferred days, special instructions, or referral rule text' }
+   OFFICIAL_ZIP_DATA is the real data you provided. The first time this
+   loads for a given team's saved data, it "seeds" that data — after that,
+   whatever's saved (zipStatuses) wins, so admins can still fix mistakes
+   or add new zips without touching code.
+   ========================================================================== */
+const OFFICIAL_ZIP_DATA = {
+  // Bookable — detail is the Preferred Days
+  '97068': { status: 'Bookable', detail: 'Preferred days: Monday & Thursday' },
+  '97034': { status: 'Bookable', detail: 'Preferred days: Tuesday & Friday' },
+  '97036': { status: 'Bookable', detail: 'Preferred days: Tuesday & Friday' },
+  '97035': { status: 'Bookable', detail: 'Preferred days: Friday' },
+  '97219': { status: 'Bookable', detail: 'Preferred days: Tuesday' },
+  '97223': { status: 'Bookable', detail: 'Preferred days: Wednesday & Saturday' },
+  '97224': { status: 'Bookable', detail: 'Preferred days: Wednesday, Saturday, & Sunday' },
+  '97062': { status: 'Bookable', detail: 'Preferred days: Saturday & Sunday' },
+  // Jump-Ball — detail is the Special Instructions
+  '97070': { status: 'Jump-Ball', detail: 'Must be the first stop of the day.' },
+  '97005': { status: 'Jump-Ball', detail: 'Must be the first stop of the day.' },
+  '97008': { status: 'Jump-Ball', detail: 'Must be the first stop of the day.' },
+  '97007': { status: 'Jump-Ball', detail: 'Must be the first stop of the day.' },
+  '97225': { status: 'Jump-Ball', detail: 'Thursday only. OK with Wed/Sat only if there are existing Tigard appointments.' },
+  '97221': { status: 'Jump-Ball', detail: 'Monday and Thursday only.' },
+  '97229': { status: 'Jump-Ball', detail: 'Must be the first stop of the day.' },
+  '97239': { status: 'Jump-Ball', detail: 'Must be the first stop of the day.' },
+  '97201': { status: 'Jump-Ball', detail: 'Must be the first stop of the day.' },
+  '97205': { status: 'Jump-Ball', detail: 'Must be the first stop of the day.' },
+  '97140': { status: 'Jump-Ball', detail: 'Only on Saturday & Sunday. Must be the first stop of the day.' },
+  // Hard Rule — do not quote/schedule normally; each subtype needs different handling:
+  //   'refer_se_portland' : outside our territory — refer to SE Portland-Clackamas, log the referral
+  //   'po_box'             : not a real serviceable address — get the client's physical street address
+  //   'grandfather_check'  : existing clients only — hold + escalate to owners; new clients get Out of Area
+  '97086': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
+  '97222': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
+  '97267': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
+  '97268': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
+  '97269': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
+  '97280': { status: 'Hard Rule', subtype: 'po_box', detail: 'PO-Box ZIP \u2014 not serviceable geography. Never quote or schedule to this ZIP; get the client\u2019s physical street address instead.' },
+  '97281': { status: 'Hard Rule', subtype: 'po_box', detail: 'PO-Box ZIP \u2014 not serviceable geography. Never quote or schedule to this ZIP; get the client\u2019s physical street address instead.' },
+  '97210': { status: 'Hard Rule', subtype: 'grandfather_check', detail: 'Only if an existing client: hold the appointment and escalate to the owners to rule on grandfathering this ZIP. Otherwise, send the Out of Area template.' },
+};
+
+let zipStatuses = {}; // used like a Dictionary<string, {status, detail}> in C#
+
+async function loadZipStatuses() {
+  let saved = {};
+  try {
+    const res = await window.storage.get('zip-statuses', true);
+    if (res && res.value) saved = JSON.parse(res.value);
+  } catch (e) { saved = {}; }
+  zipStatuses = Object.assign({}, OFFICIAL_ZIP_DATA, saved);
+}
+
+async function saveZipStatuses() {
+  try {
+    await window.storage.set('zip-statuses', JSON.stringify(zipStatuses), true);
+  } catch (e) { /* fails silently — same as the rest of this app */ }
+}
+
+/* --------------------------------------------------------------------------
+   BREED PRICING LOOKUP
+   BREED_PRICING comes straight from the Master Pricing sheet (Dog Breed
+   Rates, Luxury Bath + Full Groom columns). Typing a breed that matches
+   exactly (case-insensitive) auto-fills both price fields — still fully
+   editable afterward, this is just a starting point.
+   -------------------------------------------------------------------------- */
+const BREED_LOOKUP = {}; // lowercased breed name -> BREED_PRICING entry
+Object.keys(BREED_PRICING).forEach(name => { BREED_LOOKUP[name.toLowerCase()] = BREED_PRICING[name]; });
+
+function populateBreedDatalist() {
+  const list = document.getElementById('breedOptions');
+  list.innerHTML = Object.keys(BREED_PRICING).sort().map(b => `<option value="${b}">`).join('');
+}
+
+function onMpsBreedChange() {
+  const typed = document.getElementById('mpsBreed').value.trim();
+  const infoEl = document.getElementById('mpsBreedPriceInfo');
+  const entry = BREED_LOOKUP[typed.toLowerCase()];
+
+  if (!entry) {
+    infoEl.textContent = '';
+    return;
+  }
+
+  const parts = [];
+  if (entry.luxuryBath) {
+    document.getElementById('mpsLuxuryPrice').value = '$' + entry.luxuryBath.price;
+    parts.push(`${entry.luxuryBath.level}, ~${entry.luxuryBath.gtn}hr`);
+  }
+  if (entry.fullGroom) {
+    document.getElementById('mpsFullGroomPrice').value = '$' + entry.fullGroom.price;
+    parts.push(`FG: ${entry.fullGroom.level}, ~${entry.fullGroom.gtn}hr`);
+  } else {
+    document.getElementById('mpsFullGroomPrice').value = '';
+    parts.push('FG not offered for this breed');
+  }
+  if (entry.doubleCoat) parts.push('double coat');
+
+  infoEl.textContent = parts.join(' \u2014 ');
+}
+
+function onMpsZipChange() {
+  const zip = document.getElementById('mpsZip').value.trim();
+  const row = document.getElementById('mpsZipStatusRow');
+  if (!/^\d{5}$/.test(zip)) {
+    row.innerHTML = '';
+    updateBookingVisibility();
+    renderHardRuleAndWarningBanners();
+    return;
+  }
+  const existing = zipStatuses[zip];
+  const defaultEntry = existing || { status: 'Outside Service Area', detail: 'Not in our documented service area.' };
+
+  // Read-only — this ZIP's status comes from the Master SOP data, not a
+  // per-lead choice, so there's no dropdown to retag it here.
+  row.innerHTML = `<span class="zip-status-tag ${defaultEntry.status.replace(/ /g, '-')}" id="mpsZipStatusTag">${defaultEntry.status}</span>
+    <div class="zip-detail" id="mpsZipDetail">${defaultEntry.detail || ''}</div>`;
+
+  zipStatuses[zip] = defaultEntry;
+  saveZipStatuses();
+  toggleJumpBallButton();
+  updateBookingVisibility();
+  renderHardRuleAndWarningBanners();
+  refreshMpsTemplateSuggestion();
+}
+
+function toggleJumpBallButton() {
+  const zip = document.getElementById('mpsZip').value.trim();
+  const isJumpBall = zipStatuses[zip] && zipStatuses[zip].status === 'Jump-Ball';
+  document.getElementById('mpsJumpBallRow').style.display = isJumpBall ? 'flex' : 'none';
+}
+
+/* --------------------------------------------------------------------------
+   HARD RULE + GROOMER-RESTRICTION BANNERS
+   Two independent SOP warnings that can appear in the MPS form:
+   1. Hard Rule zip (e.g. 97015) — no quotes, refer out instead.
+   2. Val cannot service dogs over 50 lbs.
+   -------------------------------------------------------------------------- */
+function renderHardRuleAndWarningBanners() {
+  const zip = document.getElementById('mpsZip').value.trim();
+  const entry = zipStatuses[zip];
+  const hardRuleRow = document.getElementById('hardRuleRow');
+  const hardRuleActionRow = document.getElementById('mpsHardRuleActionRow');
+  const actionBtn = document.getElementById('hardRuleActionBtn');
+
+  if (entry && entry.status === 'Hard Rule') {
+    hardRuleRow.innerHTML = `<div class="hard-rule-banner"><strong>Hard Rule area \u2014 do not quote.</strong> ${entry.detail || ''}</div>`;
+    hardRuleActionRow.style.display = 'flex';
+
+    // Button label depends on the subtype (and, for 97210, on client type)
+    const v = getMpsFormValues();
+    if (entry.subtype === 'po_box') {
+      actionBtn.textContent = 'Generate Request for Physical Address';
+    } else if (entry.subtype === 'grandfather_check') {
+      actionBtn.textContent = (v.clientType === 'Existing')
+        ? 'Generate Hold + Escalate to Owners'
+        : 'Generate Out of Area Message';
+    } else {
+      actionBtn.textContent = 'Generate Referral Note (SE Portland-Clackamas)';
+    }
+  } else {
+    hardRuleRow.innerHTML = '';
+    hardRuleActionRow.style.display = 'none';
+  }
+}
+
+// PSDW: multiple overnight stays on the same day need Rosy's OK first
+function renderPsdwWarnings() {
+  const checked = document.getElementById('psdwMultiOvernight').checked;
+  document.getElementById('psdwOvernightWarning').innerHTML = checked
+    ? `<div class="warning-banner" style="margin-top:8px;">\u26A0\uFE0F Do not assign to "Anyone" yet \u2014 consult Rosy first before assigning multiple overnight stays on the same day.</div>`
+    : '';
+}
+
+/* --------------------------------------------------------------------------
+   HARD RULE REFERRAL
+   Generates the referral message from its template AND logs the referral
+   (date, zip, service) the way the SOP requires — a shared, running list.
+   -------------------------------------------------------------------------- */
+let referralLog = [];
+
+async function loadReferralLog() {
+  try {
+    const res = await window.storage.get('hard-rule-referral-log', true);
+    if (res && res.value) referralLog = JSON.parse(res.value);
+  } catch (e) { referralLog = []; }
+}
+
+async function saveReferralLog() {
+  try {
+    await window.storage.set('hard-rule-referral-log', JSON.stringify(referralLog), true);
+  } catch (e) { /* fails silently */ }
+}
+
+function generateHardRuleReferral() {
+  const v = getMpsFormValues();
+  const entry = zipStatuses[v.zip] || {};
+  const subtype = entry.subtype || 'refer_se_portland';
+  const today = new Date().toLocaleDateString();
+  const vars = buildMpsVars(v);
+  const internalVars = Object.assign({}, vars, { CLIENT_NAME: v.clientName }); // internal notes use the name as a noun, not a greeting
+
+  function useTemplate(context, type) {
+    const tpl = templates.find(t => t.context === context && t.type === type);
+    return tpl ? fillTemplate(tpl.body, type === 'internal_note' ? internalVars : vars) : null;
+  }
+
+  if (subtype === 'po_box') {
+    // PO Box — not a real serviceable address. Ask for the physical street address instead.
+    const message = useTemplate('out_of_area_generic', 'customer_message') ||
+      `Hi ${v.clientName || '[CLIENT NAME]'}, ZIP code ${v.zip} is a PO Box, which we're not able to service. Could you provide your physical street address instead?`;
+    document.getElementById('customerMessageOut').textContent = message;
+    document.getElementById('jumpBallOutputSection').style.display = 'none';
+
+    referralLog.push({ date: today, zip: v.zip, clientName: v.clientName || '(not given)', note: 'PO Box — requested physical address' });
+    saveReferralLog();
+
+  } else if (subtype === 'grandfather_check') {
+    const isExisting = v.clientType === 'Existing';
+
+    if (isExisting) {
+      // Existing client — hold the appointment, escalate to the owners internally
+      const internalMsg = useTemplate('grandfather_escalation', 'internal_note') ||
+        `Hi Rosy/Tulsi, ${v.clientName || '[CLIENT NAME]'} is an existing client in ZIP ${v.zip}, which is a Hard Rule area. Holding their appointment request pending your decision on grandfathering this ZIP. Thank you!`;
+      const customerMsg = useTemplate('jump_ball_hold_no_quote', 'customer_message') ||
+        `Hi ${v.clientName || '[CLIENT NAME]'}, thank you for reaching out! We're reviewing availability for your area and will follow up shortly.`;
+
+      document.getElementById('customerMessageOut').textContent = customerMsg;
+      document.getElementById('internalNoteHeading').textContent = 'Escalation to Owners (Grandfathering)';
+      document.getElementById('jumpBallOut').textContent = internalMsg;
+      document.getElementById('jumpBallOutputSection').style.display = 'block';
+    } else {
+      // New client — straightforward Out of Area message, no escalation
+      const message = useTemplate('out_of_area_generic', 'customer_message') ||
+        `Hi ${v.clientName || '[CLIENT NAME]'}, thank you for reaching out! Unfortunately ZIP code ${v.zip} is currently outside our service area.`;
+      document.getElementById('customerMessageOut').textContent = message;
+      document.getElementById('jumpBallOutputSection').style.display = 'none';
+    }
+
+    referralLog.push({ date: today, zip: v.zip, clientName: v.clientName || '(not given)', note: isExisting ? 'Grandfathering escalation' : 'Out of Area (new client)' });
+    saveReferralLog();
+
+  } else {
+    // refer_se_portland (default) — refer out to SE Portland-Clackamas and log
+    const message = useTemplate('se_portland_clackamas_referral', 'customer_message') ||
+      `Hi ${v.clientName || '[CLIENT NAME]'}, ZIP code ${v.zip} falls outside our SW Portland service area. Please refer to Woofie's of SE Portland-Clackamas.`;
+    document.getElementById('customerMessageOut').textContent = message;
+    document.getElementById('jumpBallOutputSection').style.display = 'none';
+
+    referralLog.push({ date: today, zip: v.zip, clientName: v.clientName || '(not given)', note: 'Referred to SE Portland-Clackamas' });
+    saveReferralLog();
+  }
+}
+
+/* --------------------------------------------------------------------------
+   BOOKING FLOW ("Client would like to reserve an appointment slot")
+   A quote is considered "ready to book" once we know the breed AND the zip
+   is marked Bookable — matching SOP Step 4 (Client Approval), which comes
+   after eligibility (Step 2) and the price quote (Step 3).
+   -------------------------------------------------------------------------- */
+function isMpsQuoteReady(v) {
+  if (!v.breed || !v.zip || !/^\d{5}$/.test(v.zip)) return false;
+  const entry = zipStatuses[v.zip];
+  return !!entry && entry.status === 'Bookable';
+}
+
+function updateBookingVisibility() {
+  const v = getMpsFormValues();
+  const ready = isMpsQuoteReady(v);
+  const row = document.getElementById('mpsBookingRow');
+  row.style.display = ready ? 'block' : 'none';
+  if (!ready) document.getElementById('mpsBookingRequested').checked = false;
+}
+
+// Which of the 5 account-setup fields are still marked as missing
+function getMissingContactFields(v) {
+  const missing = [];
+  if (!v.clientName) missing.push('Full name');
+  if (!v.hasAddress) missing.push('Complete address');
+  if (!v.hasPhone) missing.push('Phone number');
+  if (!v.hasEmail) missing.push('Email address');
+  if (!v.petName) missing.push("Pet's name");
+  return missing;
+}
+
+// Keeps the booking checkbox's visibility in sync as the admin types
+['mpsClientName','mpsPetName','mpsBreed','mpsLuxuryPrice','mpsFullGroomPrice','mpsAdminName']
+  .forEach(id => document.getElementById(id)?.addEventListener('input', updateBookingVisibility));
+document.getElementById('mpsClientType')?.addEventListener('change', updateBookingVisibility);
+document.getElementById('mpsClientType')?.addEventListener('change', refreshMpsTemplateSuggestion);
+document.getElementById('mpsBookingRequested')?.addEventListener('change', refreshMpsTemplateSuggestion);
+
+// "All" checkbox ticks/unticks Full address, Phone, and Email together
+function onMpsInfoAllChange() {
+  const all = document.getElementById('mpsInfoAll').checked;
+  ['mpsHasAddress', 'mpsHasPhone', 'mpsHasEmail'].forEach(id => { document.getElementById(id).checked = all; });
+  refreshMpsTemplateSuggestion();
+}
+
+/* --------------------------------------------------------------------------
+   ADD-ONS
+   Up to 3 add-on rows, each a dropdown (not free text, so it always matches
+   the real price list). "mpsAddon1" is static in the HTML; rows 2 and 3 are
+   built from the same option list on demand, up to the 3-add-on limit.
+   -------------------------------------------------------------------------- */
+const ADDON_LIST = [
+  "3-Step Deshed Treatment — $40.00", "Anal Glands W/ Groom — $15.00", "Anal Glands W/out Groom — $30.00",
+  "Blueberry Facial — $8.00", "Event Only: Brush 'n Go 30 minutes or less — $50.00", "Event Only: Brush 'n Go over 30 minutes — $75.00",
+  "Event Only: Wash 'n Go 50 lbs and under — $40.00", "Event Only: Wash 'n Go over 50 lbs — $60.00", "Bunny Spot Shave — $12.00",
+  "Cat Spot Shave — $15.00", "Dematting 15 mins — $35.00", "Dematting 30 mins — $55.00", "Deskunk Treatment — $65.00",
+  "Deskunk Treatment XL — $75.00", "Dog Spot Shave — $12.00", "Ear Cleaning — $15.00", "Extra Brushing 15 mins — $25.00",
+  "Face Trim — $15.00", "Face wash — $12.00", "Flea & Tick Treatment — $40.00", "Flea & Tick Treatment XL — $50.00",
+  "HANDLING FEE OVER 80 LBS — $50.00", "Happy Barkday — $12.00", "Healthy Breath Combo — $15.00", "Hugs & Kisses Bundle — $30.00",
+  "Kitty Pedi — $50.00", "Mani/Pedi (for additional Dogs) — $35.00", "Monthly Promo — $16.00", "Non-Woof Pack Bandana — $5.00",
+  "Non-Woof Pack Bow — $5.00", "Paw Pad Treatment — $15.00", "Paw Pad Trimming — $15.00", "Sanitary Trim with no Groom — $80.00",
+  "Sanitary Trim as add-on — $20.00", "Shea Butter Conditioning Spray — $8.00", "Shea Butter Relief Massage — $15.00",
+  "Special Handling Fee $10 — $10.00", "Special Handling Fee $25 — $25.00", "Sugar Cookie Spritz — $8.00", "Tick Removal — $15.00",
+  "Woof Pack Bandana — $0.00", "Woof Pack Bow — $0.00", "WP Holiday Bandana Only — $5.00", "Standard Dog Mani/Pedi — $50.00",
+];
+
+function buildAddonSelectHTML(id) {
+  const opts = ['<option value="">\u2014 None \u2014</option>']
+    .concat(ADDON_LIST.map(a => `<option value="${a}">${a}</option>`))
+    .join('');
+  return `<div style="display:flex; gap:6px; align-items:center;">
+    <select id="${id}" onchange="onAddonChange()" style="flex:1;">${opts}</select>
+    <button type="button" class="addon-remove-btn" onclick="removeAddonRow(${id.slice(-1)})" title="Remove this add-on">\u00d7</button>
+  </div>`;
+}
+
+// Reveals the next add-on row, up to the 3-add-on limit
+function addAnotherAddon() {
+  const row2 = document.getElementById('mpsAddonRow2');
+  const row3 = document.getElementById('mpsAddonRow3');
+  if (row2.style.display !== 'block') {
+    row2.innerHTML = buildAddonSelectHTML('mpsAddon2');
+    row2.style.display = 'block';
+  } else if (row3.style.display !== 'block') {
+    row3.innerHTML = buildAddonSelectHTML('mpsAddon3');
+    row3.style.display = 'block';
+  }
+  updateAddonAddButtonVisibility();
+}
+
+// Row 1 can't disappear (it's the primary field) — clicking its × just
+// clears the selection back to "None". Rows 2/3 are removed entirely.
+function removeAddonRow(rowNum) {
+  if (rowNum === 1) {
+    document.getElementById('mpsAddon1').value = '';
+  } else {
+    const row = document.getElementById('mpsAddonRow' + rowNum);
+    row.innerHTML = '';
+    row.style.display = 'none';
+  }
+  updateAddonAddButtonVisibility();
+}
+
+function updateAddonAddButtonVisibility() {
+  const row2Visible = document.getElementById('mpsAddonRow2').style.display === 'block';
+  const row3Visible = document.getElementById('mpsAddonRow3').style.display === 'block';
+  document.getElementById('mpsAddAddonBtn').style.display = (row2Visible && row3Visible) ? 'none' : 'inline-block';
+}
+
+function onAddonChange() {
+  // Reserved for future live-preview behavior; add-ons are read at generate time.
+}
+
+// Ticking/unticking one of the three keeps "All" in sync with whether all three are checked
+function onMpsInfoItemChange() {
+  const allChecked = ['mpsHasAddress', 'mpsHasPhone', 'mpsHasEmail'].every(id => document.getElementById(id).checked);
+  document.getElementById('mpsInfoAll').checked = allChecked;
+  refreshMpsTemplateSuggestion();
+}
+
+document.getElementById('psdwClientType')?.addEventListener('change', refreshPsdwTemplateSuggestion);
+document.getElementById('psdwTimeRange')?.addEventListener('input', refreshPsdwTemplateSuggestion);
+
+/* --------------------------------------------------------------------------
+   FORM READERS
+   Each function collects the current input values into one object, so the
+   template-filling code has a single tidy thing to work with instead of
+   calling document.getElementById() everywhere.
+   -------------------------------------------------------------------------- */
+function getMpsFormValues() {
+  const addon1 = document.getElementById('mpsAddon1').value;
+  const addon2El = document.getElementById('mpsAddon2');
+  const addon3El = document.getElementById('mpsAddon3');
+  return {
+    clientName: document.getElementById('mpsClientName').value.trim(),
+    clientType: document.getElementById('mpsClientType').value,
+    petName: document.getElementById('mpsPetName').value.trim(),
+    breed: document.getElementById('mpsBreed').value.trim(),
+    zip: document.getElementById('mpsZip').value.trim(),
+    hasAddress: document.getElementById('mpsHasAddress').checked,
+    hasPhone: document.getElementById('mpsHasPhone').checked,
+    hasEmail: document.getElementById('mpsHasEmail').checked,
+    luxuryPrice: document.getElementById('mpsLuxuryPrice').value.trim(),
+    fullGroomPrice: document.getElementById('mpsFullGroomPrice').value.trim(),
+    addons: [addon1, addon2El ? addon2El.value : '', addon3El ? addon3El.value : ''].filter(a => a),
+    adminName: document.getElementById('mpsAdminName').value.trim(),
+  };
+}
+
+function getPsdwFormValues() {
+  return {
+    clientName: document.getElementById('psdwClientName').value.trim(),
+    clientType: document.getElementById('psdwClientType').value,
+    petName: document.getElementById('psdwPetName').value.trim(),
+    service: document.getElementById('psdwService').value,
+    date: document.getElementById('psdwDate').value.trim(),
+    timeRange: document.getElementById('psdwTimeRange').value.trim(),
+    notes: document.getElementById('psdwNotes').value.trim(),
+  };
+}
+
+/* ==========================================================================
+   TEMPLATE ENGINE
+   ==========================================================================
+   A template is one object: { id, name, workflow, type, context, body }.
+   "body" contains [VARIABLE] placeholders. fillTemplate() swaps each one
+   for a real value — if a value is missing, the placeholder is LEFT AS-IS
+   (e.g. "[DATE]") so it's obvious to the admin what still needs typing in
+   by hand before the message goes out.
+   ========================================================================== */
+// Computed vars where an empty string is a real, intentional result (not
+// "missing, please fill in by hand") — these always substitute, even blank.
+const ALWAYS_SUBSTITUTE = new Set(['FULL_GROOM_NOTE', 'FULL_GROOM_NOTE_LONG']);
+
+function fillTemplate(body, vars) {
+  let result = body.replace(/\[([A-Z_]+)\]/g, (match, key) => {
+    const value = vars[key];
+    if (value === undefined) return match;
+    if (value === '' && !ALWAYS_SUBSTITUTE.has(key)) return match;
+    return value;
+  });
+  // If no add-on was chosen, ADDON stays unresolved ("[ADDON]") — drop
+  // that whole line rather than leave a dangling "➕ Add-on: [ADDON]".
+  result = result.replace(/^\u2795 Add-on: \[ADDON\]\n?/m, '');
+  return result;
+}
+
+// Builds the variable set for an MPS template from the current form
+function buildMpsVars(v, isCat = false) {
+  const missing = getMissingContactFields(v);
+
+  // Does the currently-typed breed offer Full Groom at all? Some breeds
+  // (short/smooth-coated) only get a Luxury Bath in the Master Pricing
+  // sheet — when that's the case, drop every Full Groom mention/price.
+  // If the breed isn't a recognized match, default to showing both.
+  const breedEntry = BREED_LOOKUP[(v.breed || '').toLowerCase()];
+  const hasFullGroom = !breedEntry || !!breedEntry.fullGroom;
+
+  const luxuryDisplay = v.luxuryPrice || '[LUXURY_BATH_PRICE]';
+  const fullGroomDisplay = v.fullGroomPrice || '[FULL_GROOM_PRICE]';
+
+  return {
+    // If the client's name wasn't given, "there" reads naturally in every
+    // greeting this app uses ("Hi there!" / "Hello there,"). Same idea for
+    // the pet's name — falls back to "your pup" or "your cat" depending on
+    // which kind of template is being generated.
+    CLIENT_NAME: v.clientName || 'there',
+    PET_NAME: v.petName || (isCat ? 'your cat' : 'your pup'),
+    BREED: v.breed,
+    ZIP: v.zip,
+    // Which specific service was chosen is no longer tracked in-app (most
+    // templates already show both prices side by side), so these stay
+    // blank and fill in by hand if a template needs a single service/price.
+    SERVICE: '',
+    PRICE: '',
+    LUXURY_BATH_PRICE: v.luxuryPrice,
+    FULL_GROOM_PRICE: v.fullGroomPrice,
+    // Phone/email/address are no longer collected as text in this tool —
+    // just whether they're on file (see the checkboxes) — so these stay
+    // blank and fill in by hand from Precise when a template needs them.
+    PHONE: '',
+    EMAIL: '',
+    ADDRESS: '',
+    ADMIN_NAME: v.adminName,
+    DATE: '', TIME: '', GROOMER: '', ADDON: v.addons.join(', '), FREQUENCY: '', DAY: '',
+    // Computed variables — always resolve (even to ''), so it's safe for
+    // templates to rely on them without leaving a stray bracket behind.
+    MISSING_FIELDS_LIST: missing.length === 0
+      ? "You're all set \u2014 nothing else needed!"
+      : missing.map(m => '\u2022 ' + m).join('\n'),
+    FULL_GROOM_NOTE: hasFullGroom ? ' Full groom includes a custom haircut.' : '',
+    FULL_GROOM_NOTE_LONG: hasFullGroom ? ' A full groom adds a haircut to your preference or breed standard.' : '',
+    ESTIMATE_LINE: hasFullGroom
+      ? `\u{1F6C1} Luxury Bath ${luxuryDisplay} \u2014 \u2702\uFE0F Full Groom ${fullGroomDisplay}.`
+      : `\u{1F6C1} Luxury Bath ${luxuryDisplay}.`,
+  };
+}
+
+function buildPsdwVars(v) {
+  return {
+    CLIENT_NAME: v.clientName, PET_NAME: v.petName, SERVICE: v.service,
+    DATE: v.date, TIME: v.timeRange, ADMIN_NAME: '',
+  };
+}
+
+/* --------------------------------------------------------------------------
+   CONTEXT SUGGESTION
+   Guesses which template best fits the current form state, the same way
+   the SOP describes the decision tree (existing vs. new client, service
+   known vs. not, etc.). The admin can always override via the dropdown.
+   -------------------------------------------------------------------------- */
+function suggestMpsContext(v) {
+  const bookingRequested = document.getElementById('mpsBookingRequested')?.checked;
+  if (bookingRequested) return 'booking_request_missing_info';
+
+  const hasValidZip = v.zip && /^\d{5}$/.test(v.zip);
+  const entry = hasValidZip ? zipStatuses[v.zip] : null;
+
+  if (entry && entry.status === 'Hard Rule') {
+    if (entry.subtype === 'refer_se_portland') return 'se_portland_clackamas_referral';
+    return 'out_of_area_generic';
+  }
+  if (entry && entry.status === 'Jump-Ball') return 'quote_schedule_consult_tulsi';
+  // A ZIP with an explicit non-Bookable status (Outside Service Area,
+  // Do-Not-Serve, Special Routing) shouldn't offer a quote.
+  if (entry && entry.status !== 'Bookable') return 'out_of_area_generic';
+
+  if (entry && entry.status === 'Bookable' && v.clientType === 'Existing') return 'quote_bookable_days';
+
+  // Bookable zip, or no zip typed yet — the "Price Quote and Schedule
+  // Offer" variant always follows the Full address/Phone/Email checkboxes,
+  // so ticking them visibly changes the suggested template right away.
+  const missing = getMissingContactFields(v);
+  if (missing.length === 0) return 'quote_schedule_all_set';
+  if (missing.length === 1 && missing[0] === 'Complete address') return 'quote_schedule_address_only';
+  return 'quote_schedule_missing_info';
+}
+
+function suggestPsdwContext(v) {
+  return 'psdw_new_client_consult';
+}
+
+/* --------------------------------------------------------------------------
+   TEMPLATE DROPDOWNS
+   -------------------------------------------------------------------------- */
+function populateMpsTemplateSelect() {
+  const sel = document.getElementById('mpsTemplateSelect');
+  const mpsTemplates = templates.filter(t =>
+    t.type === 'customer_message' && (t.workflow === 'MPS' || t.workflow === 'General'));
+  sel.innerHTML = mpsTemplates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+function populatePsdwTemplateSelect() {
+  const sel = document.getElementById('psdwTemplateSelect');
+  const psdwTemplates = templates.filter(t =>
+    t.type === 'customer_message' && (t.workflow === 'PSDW' || t.workflow === 'General'));
+  sel.innerHTML = psdwTemplates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+function refreshMpsTemplateSuggestion() {
+  const v = getMpsFormValues();
+  const context = suggestMpsContext(v);
+  const match = templates.find(t => t.context === context && t.type === 'customer_message' &&
+    (t.workflow === 'MPS' || t.workflow === 'General'));
+  if (match) document.getElementById('mpsTemplateSelect').value = match.id;
+}
+
+function refreshPsdwTemplateSuggestion() {
+  const v = getPsdwFormValues();
+  const context = suggestPsdwContext(v);
+  const match = templates.find(t => t.context === context && t.type === 'customer_message' &&
+    (t.workflow === 'PSDW' || t.workflow === 'General'));
+  if (match) document.getElementById('psdwTemplateSelect').value = match.id;
+}
+
+/* --------------------------------------------------------------------------
+   GENERATE BUTTONS
+   -------------------------------------------------------------------------- */
+function clearMpsForm() {
+  document.getElementById('mpsZip').value = '';
+  document.getElementById('mpsBreed').value = '';
+  document.getElementById('mpsBreedPriceInfo').textContent = '';
+  document.getElementById('mpsClientName').value = '';
+  document.getElementById('mpsClientType').value = 'New';
+  document.getElementById('mpsPetName').value = '';
+  document.getElementById('mpsInfoAll').checked = false;
+  document.getElementById('mpsHasAddress').checked = false;
+  document.getElementById('mpsHasPhone').checked = false;
+  document.getElementById('mpsHasEmail').checked = false;
+  document.getElementById('mpsLuxuryPrice').value = '';
+  document.getElementById('mpsFullGroomPrice').value = '';
+  document.getElementById('mpsAddon1').value = '';
+  removeAddonRow(2);
+  removeAddonRow(3);
+  document.getElementById('mpsBookingRequested').checked = false;
+  document.getElementById('mpsZipStatusRow').innerHTML = '';
+  document.getElementById('hardRuleRow').innerHTML = '';
+  document.getElementById('mpsHardRuleActionRow').style.display = 'none';
+  document.getElementById('mpsJumpBallRow').style.display = 'none';
+  document.getElementById('jumpBallOutputSection').style.display = 'none';
+  document.getElementById('jumpBallOut').textContent = 'Nothing generated yet.';
+  document.getElementById('customerMessageOut').textContent = 'Nothing generated yet.';
+  updateBookingVisibility();
+  refreshMpsTemplateSuggestion();
+}
+
+function generateMpsCustomerMessage() {
+  const v = getMpsFormValues();
+  const sel = document.getElementById('mpsTemplateSelect');
+  const t = templates.find(x => x.id === sel.value);
+  const isCat = !!(t && t.context && t.context.startsWith('cats_'));
+  const message = t ? fillTemplate(t.body, buildMpsVars(v, isCat)) : 'No template selected.';
+  document.getElementById('customerMessageOut').textContent = message;
+}
+
+function clearPsdwForm() {
+  document.getElementById('psdwClientName').value = '';
+  document.getElementById('psdwClientType').value = 'New';
+  document.getElementById('psdwPetName').value = '';
+  document.getElementById('psdwService').value = 'Pet Sitting';
+  document.getElementById('psdwDate').value = '';
+  document.getElementById('psdwTimeRange').value = '';
+  document.getElementById('psdwNotes').value = '';
+  document.getElementById('psdwMultiOvernight').checked = false;
+  document.getElementById('psdwOvernightWarning').innerHTML = '';
+  document.getElementById('customerMessageOut').textContent = 'Nothing generated yet.';
+  refreshPsdwTemplateSuggestion();
+}
+
+function generatePsdwCustomerMessage() {
+  const v = getPsdwFormValues();
+  const sel = document.getElementById('psdwTemplateSelect');
+  const t = templates.find(x => x.id === sel.value);
+  const message = t ? fillTemplate(t.body, buildPsdwVars(v)) : 'No template selected.';
+  document.getElementById('customerMessageOut').textContent = message;
+}
+
+function generateJumpBallForward() {
+  const v = getMpsFormValues();
+  const t = templates.find(x => x.context === 'jump_ball_forward' && x.type === 'internal_note');
+  const vars = buildMpsVars(v);
+  vars.CLIENT_NAME = v.clientName; // internal note uses the name as a noun ("...client: NAME (PHONE)"), so "there" would read oddly — keep the bracket if blank
+  const message = t ? fillTemplate(t.body, vars) : 'No Jump-Ball forward template found.';
+  document.getElementById('internalNoteHeading').textContent = 'Jump-Ball Forward (to Rosy)';
+  document.getElementById('jumpBallOut').textContent = message;
+  document.getElementById('jumpBallOutputSection').style.display = 'block';
+}
+
+/* ---- Copy-to-clipboard, shared by every "Copy" button ---- */
+function copyText(elementId) {
+  const text = document.getElementById(elementId).textContent;
+  if (!text || text === 'Nothing generated yet.') return;
+  navigator.clipboard.writeText(text).catch(() => {});
+}
+
+/* ==========================================================================
+   TEMPLATE MANAGER (Templates tab)
+   ==========================================================================
+   Templates are saved as ONE array under a single storage key, shared
+   across the team. DEFAULT_TEMPLATES below seeds that list the first time
+   this loads — sourced from the official SW Portland Master SOP scripts,
+   plus your frequently-used personal templates. After the first load, the
+   saved list is the source of truth, so anything added/edited here sticks.
+   ========================================================================== */
+function uid() { return 'tpl_' + Math.random().toString(36).slice(2, 10); }
+
+const DEFAULT_TEMPLATES = [
+  // ----- MPS -----
+  { name: 'Outside our Service Area', workflow: 'MPS', type: 'customer_message', context: 'out_of_area_generic',
+    body: `Hi [CLIENT_NAME]. Thank you so much for your interest! At the moment, we don't serve that area for regular mobile grooming. \u{1F61E}` },
+
+  { name: 'SE Portland-Clackamas Territory Referral', workflow: 'MPS', type: 'customer_message', context: 'se_portland_clackamas_referral',
+    body: `Hi [CLIENT_NAME],
+
+Thanks so much for reaching out!
+
+While we don't service your area ([ZIP]) from our SW Portland location, the good news is that our Woofie's SE Portland\u2013Clackamas team would be happy to help with your dog's grooming needs. \u{1F43E}
+
+You can reach them at (971) 277-8143 or visit their website: https://www.woofies.com/se-portland-Clackamas.
+
+Thanks again!
+
+Best Woofs,
+[ADMIN_NAME] - Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Price Quote and Schedule Offer \u2014 Info Still Needed', workflow: 'MPS', type: 'customer_message', context: 'quote_schedule_missing_info',
+    body: `Hello [CLIENT_NAME]!
+
+We'd love to care for [PET_NAME]!
+
+Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
+
+Estimate:
+
+[ESTIMATE_LINE]
+\u2795 Add-on: [ADDON]
+
+We have availability with [GROOMER] on [DATE] at [TIME]. If this works for you, could we please have the following?
+
+[MISSING_FIELDS_LIST]
+
+Looking forward to hearing from you.
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Price Quote and Schedule Offer \u2014 Address + Service Only', workflow: 'MPS', type: 'customer_message', context: 'quote_schedule_address_only',
+    body: `Hello [CLIENT_NAME]!
+
+We'd love to care for [PET_NAME]!
+
+Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
+
+Estimate:
+
+[ESTIMATE_LINE]
+\u2795 Add-on: [ADDON]
+
+We have availability with [GROOMER] on [DATE] at [TIME]. If you'd like to reserve this slot for [PET_NAME], could you please provide your full address and confirm the specific grooming service\u2014Luxury Bath or Full Groom?
+
+Looking forward to hearing from you.
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Price Quote and Schedule Offer \u2014 All Set', workflow: 'MPS', type: 'customer_message', context: 'quote_schedule_all_set',
+    body: `Hello [CLIENT_NAME]!
+
+We'd love to care for [PET_NAME]!
+
+Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
+
+Estimate:
+
+[ESTIMATE_LINE]
+\u2795 Add-on: [ADDON]
+
+We have availability with [GROOMER] on [DATE] at [TIME]. Please let me know if this works for you, and we will reserve it for [PET_NAME]!
+
+Looking forward to meeting you and your pup!
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Price Quote and Schedule Offer \u2014 Consult Tulsi', workflow: 'MPS', type: 'customer_message', context: 'quote_schedule_consult_tulsi',
+    body: `Hello [CLIENT_NAME]!
+
+We'd love to care for [PET_NAME]!
+
+Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
+
+Estimate:
+
+[ESTIMATE_LINE]
+\u2795 Add-on: [ADDON]
+
+We're currently reviewing availability for your area to make sure we can provide the exceptional care and attention your pets deserve. Our team will take a look and get back to you within 1\u20132 business days with an update on next steps and availability for your furry family members.
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Post-Conversion (Dog)', workflow: 'MPS', type: 'customer_message', context: 'post_conversion_dog',
+    body: `Thank you for choosing Woofie's! You and [PET_NAME] are scheduled for [DATE]. Your login has been sent (temp password: WoofiesSWPortland!). Please log in and enable notifications. \u{1F690}\u{1F4A8}
+
+Before your first appointment, please add or send [PET_NAME]'s rabies vaccination details (or your vet's contact info) and a valid payment method (card or ACH, no fees), or we may need to reschedule. You only need to be present for the first grooming appointment\u2014we can provide a free lockbox for future visits. Billing is processed within 1\u20132 days after service. Let us know if you need help! \u{1F60A}` },
+
+  { name: 'Post-Conversion (Cat)', workflow: 'MPS', type: 'customer_message', context: 'post_conversion_cat',
+    body: `Thank you for choosing Woofie's! You and [PET_NAME] are scheduled for [DATE]. Your login has been sent (temp password: WoofiesSWPortland!). Please log in and enable notifications. \u{1F690}\u{1F4A8}
+
+Before your first appointment, please add or send [PET_NAME]'s rabies vaccination details (or your vet's contact info) and a valid payment method (card or ACH, no fees), or we may need to reschedule. Please make sure [PET_NAME] is in a carrier before our groomer arrives (you'll get a 15-min notification). Billing is processed within 1\u20132 days after service. Let us know if you need help! \u{1F63A}` },
+
+  { name: 'Price Quote and Request Details', workflow: 'MPS', type: 'customer_message', context: 'quote_no_service',
+    body: `Hello [CLIENT_NAME]!
+
+We'd love to care for [PET_NAME]!
+
+Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
+
+Estimate: [ESTIMATE_LINE]
+
+For scheduling, could you please provide the following?
+
+Full name
+Complete address
+Phone number & Email address
+Pet's name
+
+Looking forward to hearing from you.
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Scheduling: Bookable Days (Existing Clients)', workflow: 'MPS', type: 'customer_message', context: 'quote_bookable_days',
+    body: `Hello [CLIENT_NAME],
+
+We received your request to schedule [PET_NAME]'s [SERVICE]. Due to our updated route planning, we currently book your area on [ZIP]
+
+We're happy to let you know that we have an available appointment on [DATE]. If that time works for you, just let us know, and we'll be happy to reserve it for [PET_NAME]!
+
+Looking forward to meeting you and your pup!
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Standard Hold Message', workflow: 'MPS', type: 'customer_message', context: 'jump_ball_hold_no_quote',
+    body: `Hi [CLIENT_NAME],
+
+Thank you so much for reaching out to Woofie's! \u{1F43E}
+
+We're currently reviewing availability for your area to make sure we can provide the exceptional care and attention your pets deserve. Our team will take a look and get back to you within 1\u20132 business days with an update on next steps and availability for your furry family members.
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Price Quote and Standard Hold Message (Jump-Ball)', workflow: 'MPS', type: 'customer_message', context: 'jump_ball_quote_hold',
+    body: `Hello [CLIENT_NAME]!
+
+We'd love to care for [PET_NAME]!
+
+Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE] Estimate: [ESTIMATE_LINE]
+
+We're checking availability in your area to ensure we can provide the care and attention your pets deserve. Our team will take a look and get back to you within 1\u20132 business days with an update on next steps and availability for your furry family members.
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'More Information (Yelp, Thumbtack, PI)', workflow: 'MPS', type: 'customer_message', context: 'new_lead_request_zip_breed',
+    body: `Hello [CLIENT_NAME],
+
+We'd love to help take care of your fur baby!
+
+Our luxury mobile bath includes thorough brushing to remove loose hair, a hydro-massage bath with premium shampoo, followed by our special no-tears blueberry facial muzzle wash to remove stains. Thorough ear cleaning, a nail trim or Dremel, and a towel-dry, followed by a blow dryer made especially for dogs. And finally, a light, fragrant spritz.[FULL_GROOM_NOTE_LONG]
+
+We'd love to learn more about your dog's needs and schedule. To check if you're within our service area and provide a quote, could you please share your ZIP code and your dog's breed? If you're unsure, a photo would also work, and we'll be happy to help identify it for you.
+
+Looking forward to hearing from you.
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Price Quote and Request Missing Info (Yelp, Thumbtack, PI)', workflow: 'MPS', type: 'customer_message', context: 'quote_no_service',
+    body: `Hello [CLIENT_NAME],
+
+We'd love to help take care of your fur baby!
+
+Our luxury mobile bath includes thorough brushing to remove loose hair, a hydro-massage bath with premium shampoo, followed by our special no-tears blueberry facial muzzle wash to remove stains. Thorough ear cleaning, a nail trim or Dremel, and a towel dry, followed by a blow dryer made especially for dogs. And finally, a light, fragrant spritz.[FULL_GROOM_NOTE_LONG] Pricing for either service depends on breed, coat condition, and temperament.
+
+For your dog, the price estimate is [ESTIMATE_LINE]
+
+For scheduling, could you please provide the following?
+
+[MISSING_FIELDS_LIST]
+
+Looking forward to hearing from you.
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Cats: More Information', workflow: 'MPS', type: 'customer_message', context: 'cats_more_info',
+    body: `Hello [CLIENT_NAME],
+
+We'd love to take great care of [PET_NAME]! Our gentle brush-out sessions remove loose fur and help prevent matting, keeping your kitty comfortable and happy. These typically range from $60\u2013$80. For a full spa refresh, our bath + nail trim package ranges from $149\u2013$229 and supports coat, skin, and paw health.
+
+May I know if [PET_NAME] is short-haired or long-haired?
+
+Looking forward to hearing from you.
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Cats: Price for Short-Haired', workflow: 'MPS', type: 'customer_message', context: 'cats_price_short',
+    body: `Hello [CLIENT_NAME],
+
+We'd love to take great care of [PET_NAME]! Our gentle brush-out sessions remove loose fur and help prevent matting, keeping your kitty comfortable and happy. These typically range from $60\u2013$70. For a full spa refresh, our bath + nail trim package is $149 and supports coat, skin, and paw health.
+
+We have an opening on [DATE]
+
+Would you like me to reserve this spot for [PET_NAME]?
+
+Looking forward to meeting you and your cat!
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Cats: Price for Long-Haired', workflow: 'MPS', type: 'customer_message', context: 'cats_price_long',
+    body: `Hello [CLIENT_NAME],
+
+We'd love to take great care of [PET_NAME]! Our gentle brush-out sessions remove loose fur and help prevent matting, keeping your kitty comfortable and happy. These typically range from $70\u2013$80. For a full spa refresh, our bath + nail trim package is $229 and supports coat, skin, and paw health.
+
+We have an opening on [DATE]. Would you like me to reserve this spot for [PET_NAME]?
+
+Looking forward to meeting you and your cat!
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Cats: Kitty Pedi', workflow: 'MPS', type: 'customer_message', context: 'cats_kitty_pedi',
+    body: `Hello [CLIENT_NAME],
+
+We'd love to care for [PET_NAME]! Our kitty pedi is $50, and it looks like we still have an opening on [DATE]. Would you like me to go ahead and reserve this for [PET_NAME]?
+
+Looking forward to meeting you and your cat!
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Woof Pack Add-on Request', workflow: 'MPS', type: 'customer_message', context: 'woofpack_addon',
+    body: `Hi [CLIENT_NAME]! We're happy to confirm that the [ADDON] has been successfully added to [PET_NAME]'s booking. We look forward to seeing you all and making [PET_NAME]'s visit extra special! \u{1F436}\u{1F499}` },
+
+  { name: 'Woof Pack Add-on \u2014 Internal Note', workflow: 'MPS', type: 'internal_note', context: 'woofpack_addon',
+    body: `To add to Groomer note: Free Add-on: [ADDON]
+
+EXISTING CLIENT \u2013 Requested the [ADDON] as [PET_NAME]'s FREE Woof Pack add-on for their [DATE] appointment. Added the complimentary Woof Pack add-on and groomer notes to the appointment. Sent a confirmation to the client.` },
+
+  { name: 'Booking Request \u2014 Missing Info', workflow: 'MPS', type: 'customer_message', context: 'booking_request_missing_info',
+    body: `Hi [CLIENT_NAME]! Wonderful \u2014 we'd love to get [PET_NAME] on the schedule.
+
+Estimate: [ESTIMATE_LINE]
+
+[MISSING_FIELDS_LIST]
+
+Once we have that, we'll get your appointment confirmed!
+
+Looking forward to hearing from you.
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Jump-Ball Forward to Tulsi', workflow: 'MPS', type: 'internal_note', context: 'jump_ball_forward',
+    body: `Hi Tulsi, forwarding a new client in the Jump-Ball area: [CLIENT_NAME] ([PHONE]), who requested pet grooming for [PET_NAME]. I have provided them with a quote, created their account in Precise, and sent her our standard hold message for now. Thank you!` },
+
+  // ----- PSDW -----
+  { name: 'Price Quote and Consultation', workflow: 'PSDW', type: 'customer_message', context: 'psdw_new_client_consult',
+    body: `Hello [CLIENT_NAME],
+
+We'd love to care for your pets while you're away! Our sitters are background-checked, trained employees with 24/7 vet telehealth support. Here are the estimated prices for the following services:
+
+\u{1F43E} 20-Minute Visit \u2013 $30
+\u{1F43E} 30-Minute Visit \u2013 $35
+\u{1F43E} 45-Minute Visit \u2013 $55
+\u{1F43E} 60-Minute Visit \u2013 $65
+
+\u{1F3E1} Bed & Biscuit (24-hour boarding): $115
+\u{1F319} Overnight Pet Sitting (12-hour overnight): $115
+\u2728 Overnight Plus (12-hr overnight + two 30-minute walks): $150
+
+All of our pricing is also transparent and available on our website at woofies.com/sw-portland.
+
+We would be happy to set up a free consultation to review your pet's routine and care needs. Would you like us to schedule a free consultation with our Chief Executive Pawfficer, Rosy, on [DATE]?
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+];
+
+let templates = [];
+let selectedTemplateId = null;
+
+async function loadTemplates() {
+  try {
+    const res = await window.storage.get('templates', true);
+    if (res && res.value) { templates = JSON.parse(res.value); return; }
+  } catch (e) { /* fall through to seeding defaults */ }
+  templates = DEFAULT_TEMPLATES.map(t => Object.assign({ id: uid() }, t));
+  await saveTemplates();
+}
+
+async function saveTemplates() {
+  try {
+    await window.storage.set('templates', JSON.stringify(templates), true);
+  } catch (e) { /* fails silently */ }
+}
+
+function renderTemplateList() {
+  const sel = document.getElementById('tplListSelect');
+  sel.innerHTML = templates.map(t =>
+    `<option value="${t.id}">${t.name} \u2014 ${t.workflow} \u2022 ${t.type.replace('_', ' ')}</option>`
+  ).join('');
+  if (!selectedTemplateId && templates.length) {
+    selectTemplate(templates[0].id);
+  } else if (selectedTemplateId) {
+    sel.value = selectedTemplateId;
+  }
+}
+
+function selectTemplate(id) {
+  selectedTemplateId = id;
+  const t = templates.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('tplName').value = t.name;
+  document.getElementById('tplWorkflow').value = t.workflow;
+  document.getElementById('tplType').value = t.type;
+  document.getElementById('tplContext').value = t.context;
+  document.getElementById('tplBody').value = t.body;
+  document.getElementById('tplSaveStatus').textContent = '';
+  renderTemplateList();
+}
+
+function startNewTemplate() {
+  selectedTemplateId = null;
+  document.getElementById('tplName').value = '';
+  document.getElementById('tplWorkflow').value = 'MPS';
+  document.getElementById('tplType').value = 'customer_message';
+  document.getElementById('tplContext').value = 'other';
+  document.getElementById('tplBody').value = '';
+  document.getElementById('tplSaveStatus').textContent = '';
+  renderTemplateList();
+}
+
+async function saveCurrentTemplate() {
+  const name = document.getElementById('tplName').value.trim();
+  const workflow = document.getElementById('tplWorkflow').value;
+  const type = document.getElementById('tplType').value;
+  const context = document.getElementById('tplContext').value;
+  const body = document.getElementById('tplBody').value;
+  if (!name || !body) {
+    document.getElementById('tplSaveStatus').textContent = 'Name and body are required.';
+    return;
+  }
+
+  if (selectedTemplateId) {
+    const t = templates.find(x => x.id === selectedTemplateId);
+    Object.assign(t, { name, workflow, type, context, body });
+  } else {
+    const t = { id: uid(), name, workflow, type, context, body };
+    templates.push(t);
+    selectedTemplateId = t.id;
+  }
+  await saveTemplates();
+  renderTemplateList();
+  refreshAllTemplateDropdowns();
+  document.getElementById('tplSaveStatus').textContent = 'Saved.';
+}
+
+function duplicateCurrentTemplate() {
+  if (!selectedTemplateId) return;
+  const t = templates.find(x => x.id === selectedTemplateId);
+  if (!t) return;
+  const copy = Object.assign({}, t, { id: uid(), name: t.name + ' (copy)' });
+  templates.push(copy);
+  saveTemplates();
+  selectTemplate(copy.id);
+  refreshAllTemplateDropdowns();
+}
+
+function deleteCurrentTemplate() {
+  if (!selectedTemplateId) return;
+  templates = templates.filter(x => x.id !== selectedTemplateId);
+  selectedTemplateId = null;
+  saveTemplates();
+  renderTemplateList();
+  startNewTemplate();
+  refreshAllTemplateDropdowns();
+}
+
+function refreshAllTemplateDropdowns() {
+  populateMpsTemplateSelect();
+  populatePsdwTemplateSelect();
+  refreshMpsTemplateSuggestion();
+  refreshPsdwTemplateSuggestion();
+}
+
+/* --------------------------------------------------------------------------
+   RESET TO DEFAULT
+   A safety net for admins: wipes any custom templates and any manual ZIP
+   status overrides, then reloads the built-in defaults from
+   DEFAULT_TEMPLATES and OFFICIAL_ZIP_DATA. Also clears the Hard Rule
+   referral log. Does NOT touch the ZIP & Routes service-area list — that's
+   real business data your team built up, not something with a "default"
+   to fall back to, so it's left alone on purpose.
+   -------------------------------------------------------------------------- */
+async function resetAppToDefault() {
+  const confirmed = window.confirm(
+    'This will erase any custom templates and ZIP status overrides, and clear the referral log \u2014 ' +
+    'restoring the built-in defaults from the Master SOP. This cannot be undone. Continue?'
+  );
+  if (!confirmed) return;
+
+  templates = DEFAULT_TEMPLATES.map(t => Object.assign({ id: uid() }, t));
+  await saveTemplates();
+
+  zipStatuses = Object.assign({}, OFFICIAL_ZIP_DATA);
+  await saveZipStatuses();
+
+  referralLog = [];
+  await saveReferralLog();
+
+  selectedTemplateId = null;
+  renderTemplateList();
+  refreshAllTemplateDropdowns();
+  onMpsZipChange();
+  updateBookingVisibility();
+  renderAllMarkerStyles();
+  zipStatusResult.innerHTML = '';
+
+  document.getElementById('tplResetStatus').textContent = 'Reset to default \u2014 all custom templates and ZIP overrides cleared.';
+}
+
+/* ==========================================================================
+   STARTUP
+   Load everything that's saved (zip statuses, referral log, templates),
+   then populate the dropdowns once the data is ready.
+   ========================================================================== */
+Promise.all([loadZipStatuses(), loadReferralLog(), loadTemplates()]).then(() => {
+  initMap();
+  refreshAllTemplateDropdowns();
+  updateBookingVisibility();
+  populateBreedDatalist();
+});
+</script>
+</body>
+</html>
