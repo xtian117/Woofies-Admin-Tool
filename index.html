@@ -1046,6 +1046,7 @@ function onMpsBreedChange() {
     infoEl.textContent = '';
     document.getElementById('mpsLuxuryPrice').value = '';
     document.getElementById('mpsFullGroomPrice').value = '';
+    refreshMpsTemplateSuggestion();
     return;
   }
 
@@ -1053,6 +1054,7 @@ function onMpsBreedChange() {
 
   if (!entry) {
     infoEl.textContent = '';
+    refreshMpsTemplateSuggestion();
     return;
   }
 
@@ -1071,6 +1073,7 @@ function onMpsBreedChange() {
   if (entry.doubleCoat) parts.push('double coat');
 
   infoEl.textContent = parts.join(' \u2014 ');
+  refreshMpsTemplateSuggestion();
 }
 
 // Quick-select shortcut: toggling the lead-source checkbox jumps the
@@ -1088,6 +1091,7 @@ function onMpsZipChange() {
   if (!/^\d{5}$/.test(zip)) {
     row.innerHTML = '';
     renderHardRuleAndWarningBanners();
+    refreshMpsTemplateSuggestion();
     return;
   }
   const existing = zipStatuses[zip];
@@ -1270,6 +1274,8 @@ function getMissingContactFields(v) {
 }
 
 document.getElementById('mpsClientType')?.addEventListener('change', refreshMpsTemplateSuggestion);
+document.getElementById('mpsClientName')?.addEventListener('input', refreshMpsTemplateSuggestion);
+document.getElementById('mpsPetName')?.addEventListener('input', refreshMpsTemplateSuggestion);
 
 // "All" checkbox ticks/unticks Full address, Phone, and Email together
 function onMpsInfoAllChange() {
@@ -1431,11 +1437,13 @@ function buildZipBreedAsk(v) {
   if (zipMissing && breedMissing) {
     return `To check if you're within our service area and provide a quote, could you please share your ZIP code and your dog's breed?${photoNote}`;
   }
-  if (zipMissing) {
-    return `To check if you're within our service area and provide a quote, could you please share your ZIP code?`;
-  }
   if (breedMissing) {
-    return `To check if you're within our service area and provide a quote, could you please share your dog's breed?${photoNote}`;
+    // ZIP is already known — just need the breed to give the quote itself.
+    return `To provide a quote, could you please share your dog's breed?${photoNote}`;
+  }
+  if (zipMissing) {
+    // Breed is already known — the only open question is service area.
+    return `To check if you're within our service area, could you please share your ZIP code?`;
   }
   return `We have your ZIP code and breed on file, so we're ready to put together your quote!`;
 }
@@ -1518,6 +1526,9 @@ function suggestMpsContext(v) {
   const hasValidZip = v.zip && /^\d{5}$/.test(v.zip);
   const entry = hasValidZip ? zipStatuses[v.zip] : null;
 
+  // ZIP-status overrides come first — if we already know we can't (or
+  // definitely can) service this area, that decides the message
+  // regardless of whether we know the breed yet.
   if (entry && entry.status === 'Hard Rule') {
     if (entry.subtype === 'refer_se_portland') return 'se_portland_clackamas_referral';
     return 'out_of_area_generic';
@@ -1527,11 +1538,18 @@ function suggestMpsContext(v) {
   // Do-Not-Serve, Special Routing) shouldn't offer a quote.
   if (entry && entry.status !== 'Bookable') return 'out_of_area_generic';
 
-  if (entry && entry.status === 'Bookable' && v.clientType === 'Existing') return 'quote_bookable_days';
+  // ZIP and breed are the two required pieces of info before anything
+  // else — we don't ask for name/address/phone/email until we know
+  // whether we can even service this lead and what the quote looks like.
+  if (!hasValidZip || !v.breed) {
+    const isReferralSite = document.getElementById('mpsFromReferralSite')?.checked;
+    return isReferralSite ? 'new_lead_request_zip_breed' : 'new_lead_request_zip_breed_other';
+  }
 
-  // Bookable zip, or no zip typed yet — the "Price Quote and Schedule
-  // Offer" variant always follows the Full address/Phone/Email checkboxes,
-  // so ticking them visibly changes the suggested template right away.
+  if (v.clientType === 'Existing') return 'quote_bookable_days';
+
+  // ZIP and breed are both in hand — now the "Price Quote and Schedule
+  // Offer" variant follows the Full address/Phone/Email checkboxes.
   const missing = getMissingContactFields(v);
   if (missing.length === 0) return 'quote_schedule_all_set';
   if (missing.length === 1 && missing[0] === 'Complete address') return 'quote_schedule_address_only';
@@ -1670,6 +1688,11 @@ function copyText(elementId, btn) {
    saved list is the source of truth, so anything added/edited here sticks.
    ========================================================================== */
 function uid() { return 'tpl_' + Math.random().toString(36).slice(2, 10); }
+
+// Bump this whenever DEFAULT_TEMPLATES changes — loadTemplates() uses it
+// to detect a stale browser-cached template set and refresh automatically,
+// instead of silently keeping old wording forever once anything is cached.
+const TEMPLATE_SET_VERSION = 'v2026-09-23a';
 
 const DEFAULT_TEMPLATES = [
   // ----- MPS -----
@@ -1952,11 +1975,21 @@ let selectedTemplateId = null;
 
 async function loadTemplates() {
   try {
+    const versionRes = storageGet('templates-version');
+    const cachedVersion = versionRes && versionRes.value;
     const res = storageGet('templates');
-    if (res && res.value) { templates = JSON.parse(res.value); return; }
+    if (res && res.value && cachedVersion === TEMPLATE_SET_VERSION) {
+      templates = JSON.parse(res.value);
+      return;
+    }
   } catch (e) { /* fall through to seeding defaults */ }
+  // No cache, or it's from an older version of this app's built-in
+  // templates — reset to the current defaults so template wording fixes
+  // actually reach the browser instead of being silently shadowed by a
+  // stale cached copy.
   templates = DEFAULT_TEMPLATES.map(t => Object.assign({ id: uid() }, t));
   await saveTemplates();
+  storageSet('templates-version', TEMPLATE_SET_VERSION);
 }
 
 async function saveTemplates() {
@@ -2072,6 +2105,7 @@ async function resetAppToDefault() {
 
   templates = DEFAULT_TEMPLATES.map(t => Object.assign({ id: uid() }, t));
   await saveTemplates();
+  storageSet('templates-version', TEMPLATE_SET_VERSION);
 
   zipStatuses = Object.assign({}, OFFICIAL_ZIP_DATA);
   await saveZipStatuses();
