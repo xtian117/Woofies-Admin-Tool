@@ -95,6 +95,12 @@
   @media (max-width: 900px) { .assistant-grid { grid-template-columns: 1fr; } }
 
   .zip-detail { font-size: 11.5px; color: var(--text-secondary); margin-top: 3px; }
+  .log-entry { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; font-size: 12.5px; }
+  .log-entry .log-top { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+  .log-entry .log-zip { color: var(--brand); }
+  .log-entry .log-date { color: var(--text-secondary); font-weight: 400; }
+  .log-entry .log-reason { color: var(--text-secondary); margin-top: 2px; }
+  .log-empty { font-size: 12.5px; color: var(--text-secondary); padding: 4px 0; }
   .hard-rule-banner {
     background: #FBE0DE; border: 1.5px solid #E4A9A4; border-radius: 6px;
     padding: 9px 10px; margin-bottom: 10px; font-size: 12px; color: #7a2620;
@@ -177,6 +183,9 @@
             </div>
           </div>
           <div id="hardRuleRow"></div>
+          <div class="output-actions" id="mpsHardRuleActionRow" style="display:none; margin-bottom:12px;">
+            <button class="btn-secondary" id="hardRuleActionBtn" onclick="generateHardRuleReferral()">Generate Referral Note (SE Portland-Clackamas)</button>
+          </div>
           <div class="field-row">
             <div class="field-group">
               <label class="field-label">Client name</label>
@@ -277,13 +286,6 @@
             <div id="mpsAddonRow3" style="display:none; margin-bottom:6px;"></div>
             <button type="button" class="btn-secondary" id="mpsAddAddonBtn" onclick="addAnotherAddon()" style="font-size:12px; padding:6px 10px;">+ Add another add-on</button>
           </div>
-          <div class="field-group" id="mpsBookingRow" style="display:none; background:var(--brand-light); border-radius:8px; padding:10px 12px;">
-            <label style="display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; color:var(--brand); cursor:pointer;">
-              <input type="checkbox" id="mpsBookingRequested" onchange="updateBookingVisibility()" style="width:auto;">
-              Client would like to reserve an appointment slot
-            </label>
-            <p style="font-size:12px; color:var(--text-secondary); margin:6px 0 0;">When checked, the customer message will ask only for whichever of the 5 setup fields are still blank below.</p>
-          </div>
           <div class="field-group">
             <label class="field-label">Admin name (for signature)</label>
             <input type="text" id="mpsAdminName" placeholder="e.g. Christian">
@@ -300,9 +302,6 @@
           </div>
           <div class="output-actions" id="mpsJumpBallRow" style="display:none;">
             <button class="btn-secondary" onclick="generateJumpBallForward()">Generate Jump-Ball Forward to Rosy</button>
-          </div>
-          <div class="output-actions" id="mpsHardRuleActionRow" style="display:none;">
-            <button class="btn-secondary" id="hardRuleActionBtn" onclick="generateHardRuleReferral()">Generate Referral Note (SE Portland-Clackamas)</button>
           </div>
         </div>
 
@@ -372,14 +371,14 @@
         <h2>Customer Message</h2>
         <div class="output-box" id="customerMessageOut">Nothing generated yet.</div>
         <div class="output-actions">
-          <button class="btn-secondary" onclick="copyText('customerMessageOut')">Copy</button>
+          <button class="btn-secondary" onclick="copyText('customerMessageOut', this)">Copy</button>
         </div>
 
         <div id="jumpBallOutputSection" style="display:none;">
           <h2 style="margin-top:20px;" id="internalNoteHeading">Jump-Ball Forward (to Rosy)</h2>
           <div class="output-box" id="jumpBallOut">Nothing generated yet.</div>
           <div class="output-actions">
-            <button class="btn-secondary" onclick="copyText('jumpBallOut')">Copy</button>
+            <button class="btn-secondary" onclick="copyText('jumpBallOut', this)">Copy</button>
           </div>
         </div>
 
@@ -387,7 +386,10 @@
       </div>
     </div>
 
-    <button class="btn-secondary" id="tplToggleBtn" onclick="toggleTemplateManager()" style="margin-top:14px;">Manage Templates ▾</button>
+    <div style="display:flex; gap:10px; margin-top:14px;">
+      <button class="btn-secondary" id="tplToggleBtn" onclick="toggleTemplateManager()">Manage Templates ▾</button>
+      <button class="btn-secondary" id="logToggleBtn" onclick="toggleReferralLog()">View Referral Log ▾</button>
+    </div>
 
     <div class="assistant-grid" id="templateManagerPanel" style="display:none; margin-top:12px;">
       <div class="panel">
@@ -443,7 +445,6 @@
             <option value="out_of_area_generic">Outside our service area</option>
             <option value="se_portland_clackamas_referral">SE Portland-Clackamas territory referral</option>
             <option value="grandfather_escalation">Hard Rule \u2014 grandfathering escalation (internal)</option>
-            <option value="booking_request_missing_info">Booking request \u2014 missing info</option>
             <option value="post_conversion_dog">Post-conversion \u2014 dog</option>
             <option value="post_conversion_cat">Post-conversion \u2014 cat</option>
             <option value="cats_more_info">Cats \u2014 more info needed</option>
@@ -475,11 +476,46 @@
         <div id="tplSaveStatus" style="font-size:12px; color:var(--brand); margin-top:6px; min-height:16px;"></div>
       </div>
     </div>
+
+    <div class="panel" id="referralLogPanel" style="display:none; margin-top:12px;">
+      <h2>Referral Log</h2>
+      <p class="note" style="margin-top:0;">Every referral sent from the "Generate Referral Note" button (Hard Rule, PO Box, or out-of-area ZIPs) is logged here — date, ZIP, client, and reason.</p>
+      <div class="output-actions" style="margin-bottom:10px;">
+        <button class="btn-secondary" onclick="copyReferralLog(this)">Copy All</button>
+      </div>
+      <div id="referralLogList"></div>
+    </div>
   </div><!-- /assistantSection -->
 
 </div>
 
 <script>
+/* --------------------------------------------------------------------------
+   STORAGE
+   Uses the browser's own localStorage — works in any normal browser once
+   this file is self-hosted, no external service needed. Note: this makes
+   saved data (custom templates, ZIP overrides, the referral log) local to
+   each person's own browser/device — it won't sync between teammates. True
+   team-wide sync would need a real shared backend instead.
+   -------------------------------------------------------------------------- */
+function storageGet(key) {
+  try {
+    const raw = localStorage.getItem('woofies:' + key);
+    return raw !== null ? { value: raw } : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function storageSet(key, value) {
+  try {
+    localStorage.setItem('woofies:' + key, value);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 const BREED_PRICING = {"Affenpincher":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"Afghan":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Airedale":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Akita":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Alaskan Malamute":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"American Bulldog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"American Eskimo":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"American Staffordshire (Pit)":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"American Water Spaniel":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"American/English Foxhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Anatolian Shepherd":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"}},"Aussiepoo/Aussiedoodle":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L6","price":"159","gtn":"1.5"}},"Australian Cattle Dog":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L6","price":"159","gtn":"1.5"}},"Australian Shepherd":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Australian Shepherd - Miniature":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"2"}},"Australian Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Basenji":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Bassett Hound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Beagle":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Bearded Collie":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Beauceron":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"}},"Bedlington":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Belgian Malinois":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Belgian Sheepdog":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Belgian Tervuren":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Bernedoodle over 40lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Bernedoodle under 40lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Bernese Mountain Dog":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Bichon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Blood Hound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Border Collie":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Border Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Borzoi":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Boston Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Bouvier des Flandres":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Boxer":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Briard":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Brittany Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Brussels Griffon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"Bull Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Bullmastiff":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"}},"Cairn Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Canaan Dog":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Cardigan Welsh Corgi (w/ tail)":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Catahoula Leopard Dog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Cavachon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Cavalier King Charles Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Cavapoo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Chesapeake Bay Retriever":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Chihuahua- Long Hair":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"Chihuahua- Short Hair":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Chinese Crested":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Chinese Crested- Powder-Puff":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Chinese Shar-Pei":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Chow Chow":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Clumber Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Cockapoo over 25 pounds":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Cockapoo under 25 pounds":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Cocker Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Collie- Rough":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Collie- Smooth":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Coon Hound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Coton de Tulear":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Curly Coated Retriever":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Dachshund, Long Haired":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Dachshund, Smooth":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Dachshund, Wire-haired":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Dalmation":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Dandie Dinmont":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Doberman":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"English Bulldog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"English Setter":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"English Springer Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"English Toy Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Finnish Spitz":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Flat Coated Retriever":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Fox- Smooth":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Fox- Wire":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"French Bulldog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"German Shepherd":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"German Short Haired Pointer":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"German Wirehaired Pointer":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Giant Schnauzer":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Golden Retriever":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Goldendoodle over 40 lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Goldendoodle under 40 lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Gordon Setter":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Great Dane":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"}},"Great Pyrenees":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Greater Swiss Mountain Dog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"}},"Greyhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Harrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Havanese":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Husky":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Ibizan":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Irish Setter":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Irish Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Irish Water Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Irish Wolfhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Italian Greyhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Japanese Chin":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Japanese Spitz":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Keeshond":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Kerry Blue":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Kuvasz":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Lab":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Labradoodle over 40 lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Labradoodle under 40 lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Lagatto Romagnolo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Lakeland":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Leonberger":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Lhasa Apso":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Lowchen":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Maltese":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Maltipoo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Manchester Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Manchester- Standard":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Mastiff":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 5","price":"119","gtn":"1"}},"Miniature Bull Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Miniature Pinscher (Min Pin)":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Miniature Schnauzer":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Morkie":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"Newfoundland":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Norfolk":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Norwegian Elkhound":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Norwich":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Old English Sheepdog":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Otterhound":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Papillion":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Parsons (Jack) Russell- Short":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Parsons (Jack) Russell- Wire":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"PBGV Petit Basset Griffon Vendeen":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Peekapoo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Pekingese":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Pembroke Welsh Corgi":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Pharaoh":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Pointer":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Pomeranian":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Pomsky":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Poodle (Standard) over 40 lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Poodle (Standard) under 40lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Poodle- Miniature":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Poodle- Toy":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Portuguese Water Dog":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Pug":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}},"Puggle":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Redbone Coonhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Rhodesian Ridgeback":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"}},"Rottweiler":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"}},"Saluki":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Samoyed":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"Schipperke":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Scottish Deerhound":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Scottish Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Sealyham":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Sheepadoodle over 40lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1.5"},"fullGroom":{"level":"L9","price":"219","gtn":"2.5"}},"Sheepadoodle under 40lbs":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Shetland Sheepdog (Sheltie)":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Shiba Inu":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Shichon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Shih Tzu":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Shihpoo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Silky Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Skye Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Spinone Italiano":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L8","price":"189","gtn":"2"}},"St Bernard":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 6","price":"139","gtn":"1"},"fullGroom":{"level":"L9","price":"219","gtn":"2"}},"Standard Schnauzer":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Sussex Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Tibetan Spaniel":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Tibetan Terrier":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 4","price":"109","gtn":"1"},"fullGroom":{"level":"L6","price":"159","gtn":"1.5"}},"Vizsla":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Weimaraner":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Welsh Springer Spaniel":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Welsh Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"West Highland White (Westie)":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L6","price":"159","gtn":"1.5"}},"Wheaten (Soft Coated)":{"doubleCoat":true,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L7","price":"169","gtn":"2"}},"Whippet":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"}},"Wirehaired Pointing Griffon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L4","price":"129","gtn":"1"}},"Yorkie-shon":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Yorkiepoo":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 3","price":"99","gtn":"1"},"fullGroom":{"level":"L5","price":"149","gtn":"1.5"}},"Yorkshire Terrier":{"doubleCoat":false,"luxuryBath":{"level":"LB Level 2","price":"79","gtn":"1"},"fullGroom":{"level":"L3","price":"119","gtn":"1"}}};
 
 const ZIP_LATLON = {
@@ -843,6 +879,50 @@ function toggleTemplateManager() {
   if (!isOpen) renderTemplateList();
 }
 
+/* --------------------------------------------------------------------------
+   REFERRAL LOG VIEWER
+   Read-only view of the referral log that's already being collected
+   silently by generateHardRuleReferral(). Newest entries first.
+   -------------------------------------------------------------------------- */
+function toggleReferralLog() {
+  const panel = document.getElementById('referralLogPanel');
+  const btn = document.getElementById('logToggleBtn');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? 'View Referral Log \u25be' : 'View Referral Log \u25b4';
+  if (!isOpen) renderReferralLog();
+}
+
+function renderReferralLog() {
+  const list = document.getElementById('referralLogList');
+  if (!referralLog.length) {
+    list.innerHTML = '<div class="log-empty">No referrals logged yet.</div>';
+    return;
+  }
+  const entries = referralLog.slice().reverse(); // newest first
+  list.innerHTML = entries.map(e => `
+    <div class="log-entry">
+      <div class="log-top"><span class="log-zip">${e.zip}</span><span class="log-date">${e.date}</span></div>
+      <div>${e.clientName || '(not given)'}</div>
+      <div class="log-reason">${e.note || ''}</div>
+    </div>
+  `).join('');
+}
+
+function copyReferralLog(btn) {
+  if (!referralLog.length) return;
+  const text = referralLog.slice().reverse()
+    .map(e => `${e.date}\t${e.zip}\t${e.clientName || '(not given)'}\t${e.note || ''}`)
+    .join('\n');
+  const header = 'Date\tZIP\tClient\tReason\n';
+  navigator.clipboard.writeText(header + text).then(() => {
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.disabled = true;
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1400);
+  }).catch(() => {});
+}
+
 // ---- Mode switching: MPS vs PSDW forms, driven by the dropdown ----
 function switchAssistantMode(mode) {
   document.getElementById('mpsForm').style.display = mode === 'MPS' ? 'block' : 'none';
@@ -893,6 +973,9 @@ const OFFICIAL_ZIP_DATA = {
   '97267': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
   '97268': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
   '97269': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
+  '97015': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
+  '97027': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
+  '97045': { status: 'Hard Rule', subtype: 'refer_se_portland', detail: 'SE Portland-Clackamas territory. Refer out and log the referral (date, ZIP, service). No quotes, no "maybes."' },
   '97280': { status: 'Hard Rule', subtype: 'po_box', detail: 'PO-Box ZIP \u2014 not serviceable geography. Never quote or schedule to this ZIP; get the client\u2019s physical street address instead.' },
   '97281': { status: 'Hard Rule', subtype: 'po_box', detail: 'PO-Box ZIP \u2014 not serviceable geography. Never quote or schedule to this ZIP; get the client\u2019s physical street address instead.' },
   '97210': { status: 'Hard Rule', subtype: 'grandfather_check', detail: 'Only if an existing client: hold the appointment and escalate to the owners to rule on grandfathering this ZIP. Otherwise, send the Out of Area template.' },
@@ -903,7 +986,7 @@ let zipStatuses = {}; // used like a Dictionary<string, {status, detail}> in C#
 async function loadZipStatuses() {
   let saved = {};
   try {
-    const res = await window.storage.get('zip-statuses', true);
+    const res = storageGet('zip-statuses');
     if (res && res.value) saved = JSON.parse(res.value);
   } catch (e) { saved = {}; }
   zipStatuses = Object.assign({}, OFFICIAL_ZIP_DATA, saved);
@@ -911,7 +994,7 @@ async function loadZipStatuses() {
 
 async function saveZipStatuses() {
   try {
-    await window.storage.set('zip-statuses', JSON.stringify(zipStatuses), true);
+    storageSet('zip-statuses', JSON.stringify(zipStatuses));
   } catch (e) { /* fails silently — same as the rest of this app */ }
 }
 
@@ -962,7 +1045,6 @@ function onMpsZipChange() {
   const row = document.getElementById('mpsZipStatusRow');
   if (!/^\d{5}$/.test(zip)) {
     row.innerHTML = '';
-    updateBookingVisibility();
     renderHardRuleAndWarningBanners();
     return;
   }
@@ -977,7 +1059,6 @@ function onMpsZipChange() {
   zipStatuses[zip] = defaultEntry;
   saveZipStatuses();
   toggleJumpBallButton();
-  updateBookingVisibility();
   renderHardRuleAndWarningBanners();
   refreshMpsTemplateSuggestion();
 }
@@ -1039,14 +1120,14 @@ let referralLog = [];
 
 async function loadReferralLog() {
   try {
-    const res = await window.storage.get('hard-rule-referral-log', true);
+    const res = storageGet('hard-rule-referral-log');
     if (res && res.value) referralLog = JSON.parse(res.value);
   } catch (e) { referralLog = []; }
 }
 
 async function saveReferralLog() {
   try {
-    await window.storage.set('hard-rule-referral-log', JSON.stringify(referralLog), true);
+    storageSet('hard-rule-referral-log', JSON.stringify(referralLog));
   } catch (e) { /* fails silently */ }
 }
 
@@ -1110,26 +1191,6 @@ function generateHardRuleReferral() {
   }
 }
 
-/* --------------------------------------------------------------------------
-   BOOKING FLOW ("Client would like to reserve an appointment slot")
-   A quote is considered "ready to book" once we know the breed AND the zip
-   is marked Bookable — matching SOP Step 4 (Client Approval), which comes
-   after eligibility (Step 2) and the price quote (Step 3).
-   -------------------------------------------------------------------------- */
-function isMpsQuoteReady(v) {
-  if (!v.breed || !v.zip || !/^\d{5}$/.test(v.zip)) return false;
-  const entry = zipStatuses[v.zip];
-  return !!entry && entry.status === 'Bookable';
-}
-
-function updateBookingVisibility() {
-  const v = getMpsFormValues();
-  const ready = isMpsQuoteReady(v);
-  const row = document.getElementById('mpsBookingRow');
-  row.style.display = ready ? 'block' : 'none';
-  if (!ready) document.getElementById('mpsBookingRequested').checked = false;
-}
-
 // Which of the 5 account-setup fields are still marked as missing
 function getMissingContactFields(v) {
   const missing = [];
@@ -1141,12 +1202,7 @@ function getMissingContactFields(v) {
   return missing;
 }
 
-// Keeps the booking checkbox's visibility in sync as the admin types
-['mpsClientName','mpsPetName','mpsBreed','mpsLuxuryPrice','mpsFullGroomPrice','mpsAdminName']
-  .forEach(id => document.getElementById(id)?.addEventListener('input', updateBookingVisibility));
-document.getElementById('mpsClientType')?.addEventListener('change', updateBookingVisibility);
 document.getElementById('mpsClientType')?.addEventListener('change', refreshMpsTemplateSuggestion);
-document.getElementById('mpsBookingRequested')?.addEventListener('change', refreshMpsTemplateSuggestion);
 
 // "All" checkbox ticks/unticks Full address, Phone, and Email together
 function onMpsInfoAllChange() {
@@ -1340,11 +1396,19 @@ function buildMpsVars(v, isCat = false) {
     MISSING_FIELDS_LIST: missing.length === 0
       ? "You're all set \u2014 nothing else needed!"
       : missing.map(m => '\u2022 ' + m).join('\n'),
-    FULL_GROOM_NOTE: hasFullGroom ? ' Full groom includes a custom haircut.' : '',
     FULL_GROOM_NOTE_LONG: hasFullGroom ? ' A full groom adds a haircut to your preference or breed standard.' : '',
+    FULL_GROOM_NOTE: hasFullGroom ? ' Full groom includes a custom haircut.' : '',
     ESTIMATE_LINE: hasFullGroom
       ? `\u{1F6C1} Luxury Bath ${luxuryDisplay} \u2014 \u2702\uFE0F Full Groom ${fullGroomDisplay}.`
       : `\u{1F6C1} Luxury Bath ${luxuryDisplay}.`,
+    // Combines the Full Groom mention + the Estimate line, with spacing
+    // that depends on whether there's actually a Full Groom to mention:
+    // when both services apply, it's enough text to warrant its own
+    // "Estimate:" paragraph; when it's Luxury Bath only, it stays inline
+    // in the same sentence rather than a lone short line by itself.
+    SERVICE_TAIL: hasFullGroom
+      ? ` Full groom includes a custom haircut.\n\nEstimate:\n\n\u{1F6C1} Luxury Bath ${luxuryDisplay} \u2014 \u2702\uFE0F Full Groom ${fullGroomDisplay}.`
+      : ` Estimate: \u{1F6C1} Luxury Bath ${luxuryDisplay}.`,
   };
 }
 
@@ -1362,9 +1426,6 @@ function buildPsdwVars(v) {
    known vs. not, etc.). The admin can always override via the dropdown.
    -------------------------------------------------------------------------- */
 function suggestMpsContext(v) {
-  const bookingRequested = document.getElementById('mpsBookingRequested')?.checked;
-  if (bookingRequested) return 'booking_request_missing_info';
-
   const hasValidZip = v.zip && /^\d{5}$/.test(v.zip);
   const entry = hasValidZip ? zipStatuses[v.zip] : null;
 
@@ -1444,7 +1505,6 @@ function clearMpsForm() {
   document.getElementById('mpsAddon1').value = '';
   removeAddonRow(2);
   removeAddonRow(3);
-  document.getElementById('mpsBookingRequested').checked = false;
   document.getElementById('mpsZipStatusRow').innerHTML = '';
   document.getElementById('hardRuleRow').innerHTML = '';
   document.getElementById('mpsHardRuleActionRow').style.display = 'none';
@@ -1452,7 +1512,6 @@ function clearMpsForm() {
   document.getElementById('jumpBallOutputSection').style.display = 'none';
   document.getElementById('jumpBallOut').textContent = 'Nothing generated yet.';
   document.getElementById('customerMessageOut').textContent = 'Nothing generated yet.';
-  updateBookingVisibility();
   refreshMpsTemplateSuggestion();
 }
 
@@ -1499,10 +1558,16 @@ function generateJumpBallForward() {
 }
 
 /* ---- Copy-to-clipboard, shared by every "Copy" button ---- */
-function copyText(elementId) {
+function copyText(elementId, btn) {
   const text = document.getElementById(elementId).textContent;
   if (!text || text === 'Nothing generated yet.') return;
-  navigator.clipboard.writeText(text).catch(() => {});
+  navigator.clipboard.writeText(text).then(() => {
+    if (!btn) return;
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.disabled = true;
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1400);
+  }).catch(() => {});
 }
 
 /* ==========================================================================
@@ -1539,13 +1604,7 @@ Best Woofs,
   { name: 'Price Quote and Schedule Offer \u2014 Info Still Needed', workflow: 'MPS', type: 'customer_message', context: 'quote_schedule_missing_info',
     body: `Hello [CLIENT_NAME]!
 
-We'd love to care for [PET_NAME]!
-
-Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
-
-Estimate:
-
-[ESTIMATE_LINE]
+We'd love to care for [PET_NAME]! Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[SERVICE_TAIL]
 \u2795 Add-on: [ADDON]
 
 We have availability with [GROOMER] on [DATE] at [TIME]. If this works for you, could we please have the following?
@@ -1561,13 +1620,7 @@ Best Woofs,
   { name: 'Price Quote and Schedule Offer \u2014 Address + Service Only', workflow: 'MPS', type: 'customer_message', context: 'quote_schedule_address_only',
     body: `Hello [CLIENT_NAME]!
 
-We'd love to care for [PET_NAME]!
-
-Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
-
-Estimate:
-
-[ESTIMATE_LINE]
+We'd love to care for [PET_NAME]! Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[SERVICE_TAIL]
 \u2795 Add-on: [ADDON]
 
 We have availability with [GROOMER] on [DATE] at [TIME]. If you'd like to reserve this slot for [PET_NAME], could you please provide your full address and confirm the specific grooming service\u2014Luxury Bath or Full Groom?
@@ -1581,13 +1634,7 @@ Best Woofs,
   { name: 'Price Quote and Schedule Offer \u2014 All Set', workflow: 'MPS', type: 'customer_message', context: 'quote_schedule_all_set',
     body: `Hello [CLIENT_NAME]!
 
-We'd love to care for [PET_NAME]!
-
-Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
-
-Estimate:
-
-[ESTIMATE_LINE]
+We'd love to care for [PET_NAME]! Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[SERVICE_TAIL]
 \u2795 Add-on: [ADDON]
 
 We have availability with [GROOMER] on [DATE] at [TIME]. Please let me know if this works for you, and we will reserve it for [PET_NAME]!
@@ -1601,13 +1648,7 @@ Best Woofs,
   { name: 'Price Quote and Schedule Offer \u2014 Consult Tulsi', workflow: 'MPS', type: 'customer_message', context: 'quote_schedule_consult_tulsi',
     body: `Hello [CLIENT_NAME]!
 
-We'd love to care for [PET_NAME]!
-
-Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
-
-Estimate:
-
-[ESTIMATE_LINE]
+We'd love to care for [PET_NAME]! Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[SERVICE_TAIL]
 \u2795 Add-on: [ADDON]
 
 We're currently reviewing availability for your area to make sure we can provide the exceptional care and attention your pets deserve. Our team will take a look and get back to you within 1\u20132 business days with an update on next steps and availability for your furry family members.
@@ -1629,11 +1670,7 @@ Before your first appointment, please add or send [PET_NAME]'s rabies vaccinatio
   { name: 'Price Quote and Request Details', workflow: 'MPS', type: 'customer_message', context: 'quote_no_service',
     body: `Hello [CLIENT_NAME]!
 
-We'd love to care for [PET_NAME]!
-
-Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
-
-Estimate: [ESTIMATE_LINE]
+We'd love to care for [PET_NAME]! Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[SERVICE_TAIL]
 
 For scheduling, could you please provide the following?
 
@@ -1676,9 +1713,7 @@ Best Woofs,
   { name: 'Price Quote and Standard Hold Message (Jump-Ball)', workflow: 'MPS', type: 'customer_message', context: 'jump_ball_quote_hold',
     body: `Hello [CLIENT_NAME]!
 
-We'd love to care for [PET_NAME]!
-
-Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE] Estimate: [ESTIMATE_LINE]
+We'd love to care for [PET_NAME]! Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE] Estimate: [ESTIMATE_LINE]
 
 We're checking availability in your area to ensure we can provide the care and attention your pets deserve. Our team will take a look and get back to you within 1\u20132 business days with an update on next steps and availability for your furry family members.
 
@@ -1780,21 +1815,6 @@ Best Woofs,
 
 EXISTING CLIENT \u2013 Requested the [ADDON] as [PET_NAME]'s FREE Woof Pack add-on for their [DATE] appointment. Added the complimentary Woof Pack add-on and groomer notes to the appointment. Sent a confirmation to the client.` },
 
-  { name: 'Booking Request \u2014 Missing Info', workflow: 'MPS', type: 'customer_message', context: 'booking_request_missing_info',
-    body: `Hi [CLIENT_NAME]! Wonderful \u2014 we'd love to get [PET_NAME] on the schedule.
-
-Estimate: [ESTIMATE_LINE]
-
-[MISSING_FIELDS_LIST]
-
-Once we have that, we'll get your appointment confirmed!
-
-Looking forward to hearing from you.
-
-Best Woofs,
-[ADMIN_NAME] \u2013 Woofie's Admin Team
-\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
-
   { name: 'Jump-Ball Forward to Tulsi', workflow: 'MPS', type: 'internal_note', context: 'jump_ball_forward',
     body: `Hi Tulsi, forwarding a new client in the Jump-Ball area: [CLIENT_NAME] ([PHONE]), who requested pet grooming for [PET_NAME]. I have provided them with a quote, created their account in Precise, and sent her our standard hold message for now. Thank you!` },
 
@@ -1827,7 +1847,7 @@ let selectedTemplateId = null;
 
 async function loadTemplates() {
   try {
-    const res = await window.storage.get('templates', true);
+    const res = storageGet('templates');
     if (res && res.value) { templates = JSON.parse(res.value); return; }
   } catch (e) { /* fall through to seeding defaults */ }
   templates = DEFAULT_TEMPLATES.map(t => Object.assign({ id: uid() }, t));
@@ -1836,7 +1856,7 @@ async function loadTemplates() {
 
 async function saveTemplates() {
   try {
-    await window.storage.set('templates', JSON.stringify(templates), true);
+    storageSet('templates', JSON.stringify(templates));
   } catch (e) { /* fails silently */ }
 }
 
@@ -1958,7 +1978,6 @@ async function resetAppToDefault() {
   renderTemplateList();
   refreshAllTemplateDropdowns();
   onMpsZipChange();
-  updateBookingVisibility();
   renderAllMarkerStyles();
   zipStatusResult.innerHTML = '';
 
@@ -1973,7 +1992,6 @@ async function resetAppToDefault() {
 Promise.all([loadZipStatuses(), loadReferralLog(), loadTemplates()]).then(() => {
   initMap();
   refreshAllTemplateDropdowns();
-  updateBookingVisibility();
   populateBreedDatalist();
 });
 </script>
