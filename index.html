@@ -106,6 +106,11 @@
     padding: 9px 10px; margin-bottom: 10px; font-size: 12px; color: #7a2620;
   }
   .hard-rule-banner strong { color: #a3352e; }
+  .outside-area-banner {
+    background: #E9F1FA; border: 1.5px solid #B9D4EC; border-radius: 6px;
+    padding: 9px 10px; margin-bottom: 10px; font-size: 12px; color: #2E5A82;
+  }
+  .outside-area-banner strong { color: #4A7CA8; }
   .warning-banner {
     background: #FFF2CC; border: 1.5px solid #E8D48A; border-radius: 6px;
     padding: 8px 10px; margin-bottom: 10px; font-size: 12px; color: #6b551a; font-weight: 600;
@@ -168,6 +173,12 @@
         <!-- ===================== MPS FORM ===================== -->
         <div id="mpsForm">
           <h2>Client &amp; Request Details</h2>
+          <div class="field-group">
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+              <input type="checkbox" id="mpsFromReferralSite" onchange="onLeadSourceChange()" style="width:auto;">
+              This lead is from Yelp, Thumbtack, or Precise Inbox
+            </label>
+          </div>
           <p class="note" style="margin-top:0; margin-bottom:12px;">Scheduling Golden Rule: allow ~2 hrs for first-time clients (~1.5 hrs may work for smaller dogs), plus ~30 min drive time on each side.</p>
           <div class="field-row">
             <div class="field-group">
@@ -439,6 +450,7 @@
             <option value="quote_schedule_consult_tulsi">Schedule offer \u2014 consult Tulsi</option>
             <option value="quote_bookable_days">Quote + bookable-day scheduling (existing clients)</option>
             <option value="new_lead_request_zip_breed">New lead \u2014 request ZIP + breed (Yelp/Thumbtack/PI)</option>
+            <option value="new_lead_request_zip_breed_other">New lead \u2014 request ZIP + breed (other platforms)</option>
             <option value="jump_ball_quote_hold">Jump-Ball \u2014 quote + hold</option>
             <option value="jump_ball_hold_no_quote">Jump-Ball \u2014 hold, no quote yet</option>
             <option value="jump_ball_forward">Jump-Ball \u2014 internal forward</option>
@@ -479,9 +491,10 @@
 
     <div class="panel" id="referralLogPanel" style="display:none; margin-top:12px;">
       <h2>Referral Log</h2>
-      <p class="note" style="margin-top:0;">Every referral sent from the "Generate Referral Note" button (Hard Rule, PO Box, or out-of-area ZIPs) is logged here — date, ZIP, client, and reason.</p>
+      <p class="note" style="margin-top:0;">Every turned-away lead — Hard Rule, PO Box, or Outside Service Area — is logged here when you click the "Generate" button for that ZIP: date, ZIP, client, and reason. Good for a daily report to the owners.</p>
       <div class="output-actions" style="margin-bottom:10px;">
         <button class="btn-secondary" onclick="copyReferralLog(this)">Copy All</button>
+        <button class="btn-secondary" onclick="resetReferralLog()">Reset Log</button>
       </div>
       <div id="referralLogList"></div>
     </div>
@@ -923,6 +936,16 @@ function copyReferralLog(btn) {
   }).catch(() => {});
 }
 
+// Clears the log for a fresh start the next day — copy/report it first if needed.
+function resetReferralLog() {
+  if (!referralLog.length) return;
+  const confirmed = window.confirm(`Clear all ${referralLog.length} logged entries? This can't be undone — copy or report on them first if you need to keep a record.`);
+  if (!confirmed) return;
+  referralLog = [];
+  saveReferralLog();
+  renderReferralLog();
+}
+
 // ---- Mode switching: MPS vs PSDW forms, driven by the dropdown ----
 function switchAssistantMode(mode) {
   document.getElementById('mpsForm').style.display = mode === 'MPS' ? 'block' : 'none';
@@ -1016,6 +1039,16 @@ function populateBreedDatalist() {
 function onMpsBreedChange() {
   const typed = document.getElementById('mpsBreed').value.trim();
   const infoEl = document.getElementById('mpsBreedPriceInfo');
+
+  if (!typed) {
+    // Breed was cleared entirely — clear the prices it filled in too,
+    // rather than leaving stale numbers for a breed that's no longer set.
+    infoEl.textContent = '';
+    document.getElementById('mpsLuxuryPrice').value = '';
+    document.getElementById('mpsFullGroomPrice').value = '';
+    return;
+  }
+
   const entry = BREED_LOOKUP[typed.toLowerCase()];
 
   if (!entry) {
@@ -1038,6 +1071,15 @@ function onMpsBreedChange() {
   if (entry.doubleCoat) parts.push('double coat');
 
   infoEl.textContent = parts.join(' \u2014 ');
+}
+
+// Quick-select shortcut: toggling the lead-source checkbox jumps the
+// template dropdown straight to the matching "More Information" template.
+function onLeadSourceChange() {
+  const isReferralSite = document.getElementById('mpsFromReferralSite').checked;
+  const wantedContext = isReferralSite ? 'new_lead_request_zip_breed' : 'new_lead_request_zip_breed_other';
+  const match = templates.find(t => t.context === wantedContext && t.type === 'customer_message');
+  if (match) document.getElementById('mpsTemplateSelect').value = match.id;
 }
 
 function onMpsZipChange() {
@@ -1097,6 +1139,14 @@ function renderHardRuleAndWarningBanners() {
     } else {
       actionBtn.textContent = 'Generate Referral Note (SE Portland-Clackamas)';
     }
+    actionBtn.onclick = generateHardRuleReferral;
+
+  } else if (entry && entry.status === 'Outside Service Area') {
+    hardRuleRow.innerHTML = `<div class="outside-area-banner"><strong>Outside our service area.</strong> ${entry.detail || ''}</div>`;
+    hardRuleActionRow.style.display = 'flex';
+    actionBtn.textContent = 'Generate Out of Area Message';
+    actionBtn.onclick = generateOutsideAreaMessage;
+
   } else {
     hardRuleRow.innerHTML = '';
     hardRuleActionRow.style.display = 'none';
@@ -1129,6 +1179,23 @@ async function saveReferralLog() {
   try {
     storageSet('hard-rule-referral-log', JSON.stringify(referralLog));
   } catch (e) { /* fails silently */ }
+}
+
+// For ZIPs with no explicit Bookable/Jump-Ball/Hard Rule status — logged
+// the same way as Hard Rule referrals, so the daily report captures every
+// turned-away lead in one place, not just the Hard Rule ones.
+function generateOutsideAreaMessage() {
+  const v = getMpsFormValues();
+  const today = new Date().toLocaleDateString();
+  const vars = buildMpsVars(v);
+  const tpl = templates.find(t => t.context === 'out_of_area_generic' && t.type === 'customer_message');
+  const message = tpl ? fillTemplate(tpl.body, vars) :
+    `Hi ${v.clientName || '[CLIENT NAME]'}. Thank you so much for your interest! At the moment, we don't serve that area for regular mobile grooming.`;
+  document.getElementById('customerMessageOut').textContent = message;
+  document.getElementById('jumpBallOutputSection').style.display = 'none';
+
+  referralLog.push({ date: today, zip: v.zip, clientName: v.clientName || '(not given)', note: 'Outside Service Area' });
+  saveReferralLog();
 }
 
 function generateHardRuleReferral() {
@@ -1354,6 +1421,25 @@ function fillTemplate(body, vars) {
 }
 
 // Builds the variable set for an MPS template from the current form
+// Builds the "could you share your ZIP/breed?" sentence for new-lead
+// templates — only asks for whichever of the two is actually missing.
+function buildZipBreedAsk(v) {
+  const zipMissing = !v.zip;
+  const breedMissing = !v.breed;
+  const photoNote = ' If you\u2019re unsure, a photo would also work, and we\u2019ll be happy to help identify it for you.';
+
+  if (zipMissing && breedMissing) {
+    return `To check if you're within our service area and provide a quote, could you please share your ZIP code and your dog's breed?${photoNote}`;
+  }
+  if (zipMissing) {
+    return `To check if you're within our service area and provide a quote, could you please share your ZIP code?`;
+  }
+  if (breedMissing) {
+    return `To check if you're within our service area and provide a quote, could you please share your dog's breed?${photoNote}`;
+  }
+  return `We have your ZIP code and breed on file, so we're ready to put together your quote!`;
+}
+
 function buildMpsVars(v, isCat = false) {
   const missing = getMissingContactFields(v);
 
@@ -1396,6 +1482,9 @@ function buildMpsVars(v, isCat = false) {
     MISSING_FIELDS_LIST: missing.length === 0
       ? "You're all set \u2014 nothing else needed!"
       : missing.map(m => '\u2022 ' + m).join('\n'),
+    // For the "new lead" templates that ask for whichever of ZIP/breed is
+    // still missing — only asks for what's actually blank, not always both.
+    ZIP_BREED_ASK: buildZipBreedAsk(v),
     FULL_GROOM_NOTE_LONG: hasFullGroom ? ' A full groom adds a haircut to your preference or breed standard.' : '',
     FULL_GROOM_NOTE: hasFullGroom ? ' Full groom includes a custom haircut.' : '',
     ESTIMATE_LINE: hasFullGroom
@@ -1493,6 +1582,7 @@ function clearMpsForm() {
   document.getElementById('mpsZip').value = '';
   document.getElementById('mpsBreed').value = '';
   document.getElementById('mpsBreedPriceInfo').textContent = '';
+  document.getElementById('mpsFromReferralSite').checked = false;
   document.getElementById('mpsClientName').value = '';
   document.getElementById('mpsClientType').value = 'New';
   document.getElementById('mpsPetName').value = '';
@@ -1728,9 +1818,24 @@ We'd love to help take care of your fur baby!
 
 Our luxury mobile bath includes thorough brushing to remove loose hair, a hydro-massage bath with premium shampoo, followed by our special no-tears blueberry facial muzzle wash to remove stains. Thorough ear cleaning, a nail trim or Dremel, and a towel-dry, followed by a blow dryer made especially for dogs. And finally, a light, fragrant spritz.[FULL_GROOM_NOTE_LONG]
 
-We'd love to learn more about your dog's needs and schedule. To check if you're within our service area and provide a quote, could you please share your ZIP code and your dog's breed? If you're unsure, a photo would also work, and we'll be happy to help identify it for you.
+We'd love to learn more about your dog's needs and schedule. [ZIP_BREED_ASK]
 
-Looking forward to hearing from you.
+Looking forward to meeting you and your pup!
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'More Information (Other Platforms)', workflow: 'MPS', type: 'customer_message', context: 'new_lead_request_zip_breed_other',
+    body: `Hello [CLIENT_NAME],
+
+We'd love to help take care of your fur baby!
+
+We'd love to care for [PET_NAME]! Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
+
+We'd love to learn more about your dog's needs and schedule. [ZIP_BREED_ASK]
+
+Looking forward to meeting you and your pup!
 
 Best Woofs,
 [ADMIN_NAME] \u2013 Woofie's Admin Team
