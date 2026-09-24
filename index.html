@@ -188,7 +188,10 @@
             </div>
             <div class="field-group">
               <label class="field-label">Breed <span class="sample-flag">(type to search Master Pricing)</span></label>
-              <input type="text" id="mpsBreed" list="breedOptions" placeholder="e.g. Goldendoodle" oninput="onMpsBreedChange()">
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="text" id="mpsBreed" list="breedOptions" placeholder="e.g. Goldendoodle" oninput="onMpsBreedChange()" style="flex:1;">
+                <button type="button" class="addon-remove-btn" onclick="clearBreedField()" title="Clear breed">↻</button>
+              </div>
               <datalist id="breedOptions"></datalist>
               <div id="mpsBreedPriceInfo" class="zip-detail"></div>
             </div>
@@ -217,7 +220,7 @@
           <div class="field-group">
             <label class="field-label">Account setup info on file</label>
             <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center; font-size:13px; padding:6px 0;">
-              <label style="display:flex; align-items:center; gap:5px; font-weight:700; cursor:pointer;">
+              <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
                 <input type="checkbox" id="mpsInfoAll" onchange="onMpsInfoAllChange()" style="width:auto;"> All
               </label>
               <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
@@ -399,7 +402,7 @@
 
     <div style="display:flex; gap:10px; margin-top:14px;">
       <button class="btn-secondary" id="tplToggleBtn" onclick="toggleTemplateManager()">Manage Templates ▾</button>
-      <button class="btn-secondary" id="logToggleBtn" onclick="toggleReferralLog()">View Referral Log ▾</button>
+      <button class="btn-secondary" id="logToggleBtn" onclick="toggleReferralLog()">View Activity Log ▾</button>
     </div>
 
     <div class="assistant-grid" id="templateManagerPanel" style="display:none; margin-top:12px;">
@@ -451,6 +454,8 @@
             <option value="quote_bookable_days">Quote + bookable-day scheduling (existing clients)</option>
             <option value="new_lead_request_zip_breed">New lead \u2014 request ZIP + breed (Yelp/Thumbtack/PI)</option>
             <option value="new_lead_request_zip_breed_other">New lead \u2014 request ZIP + breed (other platforms)</option>
+            <option value="new_lead_zip_missing_referral">New lead \u2014 quote + request ZIP only (Yelp/Thumbtack/PI)</option>
+            <option value="new_lead_zip_missing_other">New lead \u2014 quote + request ZIP only (other platforms)</option>
             <option value="jump_ball_quote_hold">Jump-Ball \u2014 quote + hold</option>
             <option value="jump_ball_hold_no_quote">Jump-Ball \u2014 hold, no quote yet</option>
             <option value="jump_ball_forward">Jump-Ball \u2014 internal forward</option>
@@ -490,8 +495,8 @@
     </div>
 
     <div class="panel" id="referralLogPanel" style="display:none; margin-top:12px;">
-      <h2>Referral Log</h2>
-      <p class="note" style="margin-top:0;">Every turned-away lead — Hard Rule, PO Box, or Outside Service Area — is logged here when you click the "Generate" button for that ZIP: date, ZIP, client, and reason. Good for a daily report to the owners.</p>
+      <h2>Activity Log</h2>
+      <p class="note" style="margin-top:0;">Every customer message generated today — quotes, referrals, confirmations, and everything in between — is logged here: date, ZIP, client, and what was sent. Good for a daily report to the owners.</p>
       <div class="output-actions" style="margin-bottom:10px;">
         <button class="btn-secondary" onclick="copyReferralLog(this)">Copy All</button>
         <button class="btn-secondary" onclick="resetReferralLog()">Reset Log</button>
@@ -902,7 +907,7 @@ function toggleReferralLog() {
   const btn = document.getElementById('logToggleBtn');
   const isOpen = panel.style.display !== 'none';
   panel.style.display = isOpen ? 'none' : 'block';
-  btn.textContent = isOpen ? 'View Referral Log \u25be' : 'View Referral Log \u25b4';
+  btn.textContent = isOpen ? 'View Activity Log \u25be' : 'View Activity Log \u25b4';
   if (!isOpen) renderReferralLog();
 }
 
@@ -1036,6 +1041,13 @@ function populateBreedDatalist() {
   list.innerHTML = Object.keys(BREED_PRICING).sort().map(b => `<option value="${b}">`).join('');
 }
 
+// Small refresh button beside the breed field — clears it (and, via the
+// same path as manually clearing it, the prices it filled in) in one click.
+function clearBreedField() {
+  document.getElementById('mpsBreed').value = '';
+  onMpsBreedChange();
+}
+
 function onMpsBreedChange() {
   const typed = document.getElementById('mpsBreed').value.trim();
   const infoEl = document.getElementById('mpsBreedPriceInfo');
@@ -1078,11 +1090,11 @@ function onMpsBreedChange() {
 
 // Quick-select shortcut: toggling the lead-source checkbox jumps the
 // template dropdown straight to the matching "More Information" template.
+// The checkbox itself feeds into suggestMpsContext() (it checks this same
+// element), so re-running the normal suggestion logic picks the right
+// template whether we're missing breed, missing ZIP, or missing neither.
 function onLeadSourceChange() {
-  const isReferralSite = document.getElementById('mpsFromReferralSite').checked;
-  const wantedContext = isReferralSite ? 'new_lead_request_zip_breed' : 'new_lead_request_zip_breed_other';
-  const match = templates.find(t => t.context === wantedContext && t.type === 'customer_message');
-  if (match) document.getElementById('mpsTemplateSelect').value = match.id;
+  refreshMpsTemplateSuggestion();
 }
 
 function onMpsZipChange() {
@@ -1538,12 +1550,18 @@ function suggestMpsContext(v) {
   // Do-Not-Serve, Special Routing) shouldn't offer a quote.
   if (entry && entry.status !== 'Bookable') return 'out_of_area_generic';
 
-  // ZIP and breed are the two required pieces of info before anything
-  // else — we don't ask for name/address/phone/email until we know
-  // whether we can even service this lead and what the quote looks like.
-  if (!hasValidZip || !v.breed) {
+  // Breed is the one thing we truly can't proceed without — no breed
+  // means no quote, so ask for zip+breed together regardless of zip.
+  if (!v.breed) {
     const isReferralSite = document.getElementById('mpsFromReferralSite')?.checked;
     return isReferralSite ? 'new_lead_request_zip_breed' : 'new_lead_request_zip_breed_other';
+  }
+
+  // Breed is known but ZIP isn't — we can already quote off the breed,
+  // so go ahead and provide it while asking for ZIP to confirm eligibility.
+  if (!hasValidZip) {
+    const isReferralSite = document.getElementById('mpsFromReferralSite')?.checked;
+    return isReferralSite ? 'new_lead_zip_missing_referral' : 'new_lead_zip_missing_other';
   }
 
   if (v.clientType === 'Existing') return 'quote_bookable_days';
@@ -1630,6 +1648,16 @@ function generateMpsCustomerMessage() {
   const isCat = !!(t && t.context && t.context.startsWith('cats_'));
   const message = t ? fillTemplate(t.body, buildMpsVars(v, isCat)) : 'No template selected.';
   document.getElementById('customerMessageOut').textContent = message;
+
+  if (t) {
+    referralLog.push({
+      date: new Date().toLocaleDateString(),
+      zip: v.zip || '(no zip)',
+      clientName: v.clientName || '(not given)',
+      note: 'MPS \u2014 ' + t.name,
+    });
+    saveReferralLog();
+  }
 }
 
 function clearPsdwForm() {
@@ -1652,6 +1680,16 @@ function generatePsdwCustomerMessage() {
   const t = templates.find(x => x.id === sel.value);
   const message = t ? fillTemplate(t.body, buildPsdwVars(v)) : 'No template selected.';
   document.getElementById('customerMessageOut').textContent = message;
+
+  if (t) {
+    referralLog.push({
+      date: new Date().toLocaleDateString(),
+      zip: '(PSDW)',
+      clientName: v.clientName || '(not given)',
+      note: 'PSDW \u2014 ' + t.name,
+    });
+    saveReferralLog();
+  }
 }
 
 function generateJumpBallForward() {
@@ -1692,7 +1730,7 @@ function uid() { return 'tpl_' + Math.random().toString(36).slice(2, 10); }
 // Bump this whenever DEFAULT_TEMPLATES changes — loadTemplates() uses it
 // to detect a stale browser-cached template set and refresh automatically,
 // instead of silently keeping old wording forever once anything is cached.
-const TEMPLATE_SET_VERSION = 'v2026-09-23a';
+const TEMPLATE_SET_VERSION = 'v2026-09-23f';
 
 const DEFAULT_TEMPLATES = [
   // ----- MPS -----
@@ -1852,13 +1890,43 @@ Best Woofs,
   { name: 'More Information (Other Platforms)', workflow: 'MPS', type: 'customer_message', context: 'new_lead_request_zip_breed_other',
     body: `Hello [CLIENT_NAME],
 
-We'd love to help take care of your fur baby!
-
-We'd love to care for [PET_NAME]! Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
+We'd love to help take care of your fur baby! Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.[FULL_GROOM_NOTE]
 
 We'd love to learn more about your dog's needs and schedule. [ZIP_BREED_ASK]
 
 Looking forward to meeting you and your pup!
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Quote + Request ZIP (Yelp, Thumbtack, PI)', workflow: 'MPS', type: 'customer_message', context: 'new_lead_zip_missing_referral',
+    body: `Hello [CLIENT_NAME],
+
+We'd love to help take care of your fur baby!
+
+Our luxury mobile bath includes thorough brushing to remove loose hair, a hydro-massage bath with premium shampoo, followed by our special no-tears blueberry facial muzzle wash to remove stains. Thorough ear cleaning, a nail trim or Dremel, and a towel-dry, followed by a blow dryer made especially for dogs. And finally, a light, fragrant spritz.
+
+Estimate: [ESTIMATE_LINE]
+
+[ZIP_BREED_ASK]
+
+Looking forward to hearing from you!
+
+Best Woofs,
+[ADMIN_NAME] \u2013 Woofie's Admin Team
+\u{1F436}\u{1F431}\u{1F9B4}\u{1F43E}` },
+
+  { name: 'Quote + Request ZIP (Other Platforms)', workflow: 'MPS', type: 'customer_message', context: 'new_lead_zip_missing_other',
+    body: `Hello [CLIENT_NAME],
+
+We'd love to help take care of your fur baby! Our luxury mobile bath includes brushing, hydro-massage bath, blueberry facial, ear cleaning, nail trim/dremel, drying, and light spritz.
+
+Estimate: [ESTIMATE_LINE]
+
+[ZIP_BREED_ASK]
+
+Looking forward to hearing from you!
 
 Best Woofs,
 [ADMIN_NAME] \u2013 Woofie's Admin Team
