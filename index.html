@@ -784,10 +784,10 @@ function focusZip(zip) {
   const boundaryFeature = ZIP_BOUNDARIES.features.find(f => f.properties.zip === zip);
   if (boundaryFeature) {
     const bounds = polygonBounds(boundaryFeature.geometry);
-    map.fitBounds(bounds, { padding: 60, maxZoom: 12, duration: 500 });
+    map.fitBounds(bounds, { padding: 80, maxZoom: 10.5, duration: 500 });
   } else if (ZIP_LATLON[zip]) {
     const [lat, lon] = ZIP_LATLON[zip];
-    map.flyTo({ center: [lon, lat], zoom: 11.5, duration: 500 });
+    map.flyTo({ center: [lon, lat], zoom: 10.5, duration: 500 });
   }
 }
 
