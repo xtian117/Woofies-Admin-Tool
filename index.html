@@ -99,7 +99,13 @@
   .log-entry .log-top { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
   .log-entry .log-zip { color: var(--brand); }
   .log-entry .log-date { color: var(--text-secondary); font-weight: 400; }
-  .log-entry .log-reason { color: var(--text-secondary); margin-top: 2px; }
+  .log-entry .log-reason { color: var(--text-secondary); margin-top: 2px; white-space: pre-line; }
+  .log-entry-actions { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+  .log-mini-btn {
+    background: var(--page); color: var(--text-secondary); border: 1px solid var(--border);
+    border-radius: 5px; padding: 2px 8px; font-size: 11px; font-weight: 600; cursor: pointer;
+  }
+  .log-mini-btn:hover { background: #e3ecf3; }
   .log-empty { font-size: 12.5px; color: var(--text-secondary); padding: 4px 0; }
   .hard-rule-banner {
     background: #FBE0DE; border: 1.5px solid #E4A9A4; border-radius: 6px;
@@ -187,7 +193,7 @@
               <div id="mpsZipStatusRow" style="margin-top:6px;"></div>
             </div>
             <div class="field-group">
-              <label class="field-label">Breed <span class="sample-flag">(type to search Master Pricing)</span></label>
+              <label class="field-label">Breed <span class="sample-flag">(Type to search)</span></label>
               <div style="display:flex; gap:6px; align-items:center;">
                 <input type="text" id="mpsBreed" list="breedOptions" placeholder="e.g. Goldendoodle" oninput="onMpsBreedChange()" style="flex:1;">
                 <button type="button" class="addon-remove-btn" onclick="clearBreedField()" title="Clear breed">↻</button>
@@ -388,6 +394,15 @@
           <button class="btn-secondary" onclick="copyText('customerMessageOut', this)">Copy</button>
         </div>
 
+        <div class="field-group" style="margin-top:14px;">
+          <label class="field-label">Notes <span class="sample-flag">(optional)</span></label>
+          <textarea id="activityNotes" rows="2" placeholder="Anything worth remembering about this interaction..."></textarea>
+        </div>
+        <div class="output-actions">
+          <button class="btn-secondary" id="addToLogBtn" onclick="addToActivityLog()">Add to Activity Log</button>
+        </div>
+        <div id="addToLogStatus" style="font-size:12px; color:var(--brand); margin-top:6px; min-height:16px;"></div>
+
         <div id="jumpBallOutputSection" style="display:none;">
           <h2 style="margin-top:20px;" id="internalNoteHeading">Jump-Ball Forward (to Rosy)</h2>
           <div class="output-box" id="jumpBallOut">Nothing generated yet.</div>
@@ -396,7 +411,6 @@
           </div>
         </div>
 
-        <p class="note" style="margin-top:18px;">ZIP rules (Bookable/Jump-Ball/Hard Rule) are seeded from the SW Portland Master SOP.</p>
       </div>
     </div>
 
@@ -496,7 +510,7 @@
 
     <div class="panel" id="referralLogPanel" style="display:none; margin-top:12px;">
       <h2>Activity Log</h2>
-      <p class="note" style="margin-top:0;">Every customer message generated today — quotes, referrals, confirmations, and everything in between — is logged here: date, ZIP, client, and what was sent. Good for a daily report to the owners.</p>
+      <p class="note" style="margin-top:0;">Nothing gets logged automatically. Click "Add to Activity Log" next to a generated message (with an optional note) to save it here — date, ZIP, client, your note, and whichever Client &amp; Request Details fields are filled in. Good for a daily report to the owners.</p>
       <div class="output-actions" style="margin-bottom:10px;">
         <button class="btn-secondary" onclick="copyReferralLog(this)">Copy All</button>
         <button class="btn-secondary" onclick="resetReferralLog()">Reset Log</button>
@@ -917,14 +931,42 @@ function renderReferralLog() {
     list.innerHTML = '<div class="log-empty">No referrals logged yet.</div>';
     return;
   }
-  const entries = referralLog.slice().reverse(); // newest first
+  // Keep each entry's original array index before reversing, so the
+  // per-entry Copy/Remove buttons target the right one.
+  const entries = referralLog.map((e, i) => Object.assign({}, e, { _idx: i })).reverse();
   list.innerHTML = entries.map(e => `
     <div class="log-entry">
-      <div class="log-top"><span class="log-zip">${e.zip}</span><span class="log-date">${e.date}</span></div>
+      <div class="log-top">
+        <span class="log-zip">${e.zip}</span>
+        <span class="log-date">${e.date}</span>
+      </div>
       <div>${e.clientName || '(not given)'}</div>
       <div class="log-reason">${e.note || ''}</div>
+      <div class="log-entry-actions">
+        <button class="log-mini-btn" onclick="copyLogEntry(${e._idx}, this)">Copy</button>
+        <button class="addon-remove-btn" onclick="removeLogEntry(${e._idx})" title="Remove this entry">\u00d7</button>
+      </div>
     </div>
   `).join('');
+}
+
+function copyLogEntry(idx, btn) {
+  const e = referralLog[idx];
+  if (!e) return;
+  const text = `${e.date}\t${e.zip}\t${e.clientName || '(not given)'}\t${e.note || ''}`;
+  navigator.clipboard.writeText(text).then(() => {
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.disabled = true;
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1400);
+  }).catch(() => {});
+}
+
+function removeLogEntry(idx) {
+  if (idx < 0 || idx >= referralLog.length) return;
+  referralLog.splice(idx, 1);
+  saveReferralLog();
+  renderReferralLog();
 }
 
 function copyReferralLog(btn) {
@@ -949,6 +991,78 @@ function resetReferralLog() {
   referralLog = [];
   saveReferralLog();
   renderReferralLog();
+}
+
+// Builds a compact "Details: ..." summary from whichever Client & Request
+// Details fields actually have something in them — blank fields are skipped.
+function gatherMpsDetailsSummary(v) {
+  const parts = [];
+  if (v.zip) parts.push('ZIP: ' + v.zip);
+  if (v.breed) parts.push('Breed: ' + v.breed);
+  if (v.clientType) parts.push('Client type: ' + v.clientType);
+  if (v.petName) parts.push('Pet: ' + v.petName);
+  if (document.getElementById('mpsInfoAll').checked) {
+    parts.push('All details are on file');
+  } else {
+    if (v.hasAddress) parts.push('Address on file');
+    if (v.hasPhone) parts.push('Phone on file');
+    if (v.hasEmail) parts.push('Email on file');
+  }
+  if (v.luxuryPrice) parts.push('Luxury Bath: ' + v.luxuryPrice);
+  if (v.fullGroomPrice) parts.push('Full Groom: ' + v.fullGroomPrice);
+  if (v.addons && v.addons.length) parts.push('Add-ons: ' + v.addons.join(', '));
+  if (v.adminName) parts.push('Admin: ' + v.adminName);
+  return parts.join(' \u2022 ');
+}
+
+function gatherPsdwDetailsSummary(v) {
+  const parts = [];
+  if (v.clientType) parts.push('Client type: ' + v.clientType);
+  if (v.petName) parts.push('Pet: ' + v.petName);
+  if (v.service) parts.push('Service: ' + v.service);
+  if (v.date) parts.push('Date: ' + v.date);
+  if (v.timeRange) parts.push('Time range: ' + v.timeRange);
+  return parts.join(' \u2022 ');
+}
+
+// Manually adds one entry to the Activity Log — the notes text plus
+// whichever Client & Request Details fields are actually filled in.
+// Nothing gets logged unless this button is clicked, and a note is required.
+function addToActivityLog() {
+  const notes = document.getElementById('activityNotes').value.trim();
+  const statusEl = document.getElementById('addToLogStatus');
+
+  if (!notes) {
+    statusEl.textContent = 'Add a note first \u2014 nothing was logged.';
+    setTimeout(() => { statusEl.textContent = ''; }, 2500);
+    return;
+  }
+
+  const isMps = document.getElementById('assistantModeSelect').value === 'MPS';
+
+  let zip, clientName, detailsSummary;
+  if (isMps) {
+    const v = getMpsFormValues();
+    zip = v.zip || '(no zip)';
+    clientName = v.clientName || '(not given)';
+    detailsSummary = gatherMpsDetailsSummary(v);
+  } else {
+    const v = getPsdwFormValues();
+    zip = '(PSDW)';
+    clientName = v.clientName || '(not given)';
+    detailsSummary = gatherPsdwDetailsSummary(v);
+  }
+
+  const noteParts = [notes];
+  if (detailsSummary) noteParts.push('Details: ' + detailsSummary);
+  const note = noteParts.join('\n');
+
+  referralLog.push({ date: new Date().toLocaleDateString(), zip, clientName, note });
+  saveReferralLog();
+
+  document.getElementById('activityNotes').value = '';
+  statusEl.textContent = 'Added to Activity Log.';
+  setTimeout(() => { statusEl.textContent = ''; }, 2500);
 }
 
 // ---- Mode switching: MPS vs PSDW forms, driven by the dropdown ----
@@ -1638,6 +1752,9 @@ function clearMpsForm() {
   document.getElementById('jumpBallOutputSection').style.display = 'none';
   document.getElementById('jumpBallOut').textContent = 'Nothing generated yet.';
   document.getElementById('customerMessageOut').textContent = 'Nothing generated yet.';
+  document.getElementById('activityNotes').value = '';
+  document.getElementById('activityNotes').style.height = '';
+  document.getElementById('addToLogStatus').textContent = '';
   refreshMpsTemplateSuggestion();
 }
 
@@ -1648,16 +1765,6 @@ function generateMpsCustomerMessage() {
   const isCat = !!(t && t.context && t.context.startsWith('cats_'));
   const message = t ? fillTemplate(t.body, buildMpsVars(v, isCat)) : 'No template selected.';
   document.getElementById('customerMessageOut').textContent = message;
-
-  if (t) {
-    referralLog.push({
-      date: new Date().toLocaleDateString(),
-      zip: v.zip || '(no zip)',
-      clientName: v.clientName || '(not given)',
-      note: 'MPS \u2014 ' + t.name,
-    });
-    saveReferralLog();
-  }
 }
 
 function clearPsdwForm() {
@@ -1671,6 +1778,9 @@ function clearPsdwForm() {
   document.getElementById('psdwMultiOvernight').checked = false;
   document.getElementById('psdwOvernightWarning').innerHTML = '';
   document.getElementById('customerMessageOut').textContent = 'Nothing generated yet.';
+  document.getElementById('activityNotes').value = '';
+  document.getElementById('activityNotes').style.height = '';
+  document.getElementById('addToLogStatus').textContent = '';
   refreshPsdwTemplateSuggestion();
 }
 
@@ -1680,16 +1790,6 @@ function generatePsdwCustomerMessage() {
   const t = templates.find(x => x.id === sel.value);
   const message = t ? fillTemplate(t.body, buildPsdwVars(v)) : 'No template selected.';
   document.getElementById('customerMessageOut').textContent = message;
-
-  if (t) {
-    referralLog.push({
-      date: new Date().toLocaleDateString(),
-      zip: '(PSDW)',
-      clientName: v.clientName || '(not given)',
-      note: 'PSDW \u2014 ' + t.name,
-    });
-    saveReferralLog();
-  }
 }
 
 function generateJumpBallForward() {
