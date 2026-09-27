@@ -21,7 +21,7 @@
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--page); color: var(--text-primary); font-size: 14px; }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 20px 32px; }
-  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
   h1 { font-size: 18px; font-weight: 600; margin: 0; color: var(--brand); }
   .sub { font-size: 12px; color: var(--text-secondary); margin: 2px 0 0; }
   .layout { display: grid; grid-template-columns: 1fr 300px; gap: 14px; align-items: start; }
@@ -135,7 +135,31 @@
       <h1>Woofie's of SW Portland — Admin Tools</h1>
       <p class="sub">ZIP code status lookup and the MPS/PSDW template assistant.</p>
     </div>
+    <button class="btn-secondary" id="sopViewBtn" onclick="toggleSopViewer()" style="white-space:nowrap; flex-shrink:0;">
+      📋 View SW Portland SOP
+    </button>
   </header>
+
+  <!-- SOP VIEWER PANEL — shown full-width above the main layout when toggled -->
+  <div id="sopViewerPanel" style="display:none; margin-bottom:16px;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:var(--shadow);">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid var(--border);">
+        <span style="font-weight:700; font-size:14px;">SW Portland — Master SOP</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <a href="https://docs.google.com/document/d/1RcPo9DPIaBjvDFHuC_8Z6ouTtynI7eHtoB3t5t7TE-w/edit?tab=t.l2g4pjmzm834" target="_blank" class="btn-secondary" style="font-size:12px; padding:4px 10px; text-decoration:none;">Open in Google Docs ↗</a>
+          <button class="btn-secondary" onclick="toggleSopViewer()" style="font-size:12px; padding:4px 10px;">Close ✕</button>
+        </div>
+      </div>
+      <div style="overflow:hidden; height:80vh;">
+        <iframe
+          id="sopIframe"
+          src="https://docs.google.com/document/d/1RcPo9DPIaBjvDFHuC_8Z6ouTtynI7eHtoB3t5t7TE-w/preview?embedded=true&rm=minimal&tab=t.0"
+          style="width:100%; height:calc(100% + 30px); border:none; display:block;"
+          allowfullscreen>
+        </iframe>
+      </div>
+    </div>
+  </div>
 
   <div class="layout">
     <div class="panel map-panel">
@@ -517,6 +541,7 @@
       </div>
       <div id="referralLogList"></div>
     </div>
+
   </div><!-- /assistantSection -->
 
 </div>
@@ -906,6 +931,24 @@ document.getElementById('clearZipBtn').onclick = clearZipLookup;
    ========================================================================== */
 
 // ---- Shows/hides the collapsible Template Manager panel ----
+function toggleSopViewer() {
+  const panel = document.getElementById('sopViewerPanel');
+  const btn = document.getElementById('sopViewBtn');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? '\uD83D\uDCCB View SW Portland SOP' : '\uD83D\uDCCB Hide SOP';
+}
+
+// Prevent scroll chaining: when the cursor is inside the SOP viewer,
+// lock the page scroll so reaching the end of the iframe doesn't
+// accidentally scroll the rest of the app underneath it.
+document.getElementById('sopViewerPanel').addEventListener('mouseenter', () => {
+  document.documentElement.style.overflow = 'hidden';
+});
+document.getElementById('sopViewerPanel').addEventListener('mouseleave', () => {
+  document.documentElement.style.overflow = '';
+});
+
 function toggleTemplateManager() {
   const panel = document.getElementById('templateManagerPanel');
   const btn = document.getElementById('tplToggleBtn');
@@ -1071,6 +1114,8 @@ function addToActivityLog() {
 
 // ---- Mode switching: MPS vs PSDW forms, driven by the dropdown ----
 function switchAssistantMode(mode) {
+  document.getElementById('mpsForm').style.display = mode === 'MPS' ? 'block' : 'none';
+  document.getElementById('psdwForm').style.display = mode === 'PSDW' ? 'block' : 'none';
   document.getElementById('mpsForm').style.display = mode === 'MPS' ? 'block' : 'none';
   document.getElementById('psdwForm').style.display = mode === 'PSDW' ? 'block' : 'none';
   document.getElementById('assistantModeSelect').value = mode;
@@ -1830,7 +1875,8 @@ function generateJumpBallForward() {
 
 /* ---- Copy-to-clipboard, shared by every "Copy" button ---- */
 function copyText(elementId, btn) {
-  const text = document.getElementById(elementId).textContent;
+  const el = document.getElementById(elementId);
+  const text = (el.value !== undefined) ? el.value : el.textContent;
   if (!text || text === 'Nothing generated yet.') return;
   navigator.clipboard.writeText(text).then(() => {
     if (!btn) return;
