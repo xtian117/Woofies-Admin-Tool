@@ -154,7 +154,7 @@
     <div class="panel">
       <h2>Check a ZIP code</h2>
       <div class="form-row">
-        <input type="text" id="zipInput" placeholder="e.g. 97219" maxlength="5" inputmode="numeric">
+        <input type="text" id="zipInput" placeholder="e.g. 97219" maxlength="5" inputmode="numeric" oninput="syncZipFields('zipInput')">
       </div>
       <div class="form-row">
         <button class="btn-primary" id="checkBtn" style="flex:1;">Check Status</button>
@@ -189,7 +189,7 @@
           <div class="field-row">
             <div class="field-group">
               <label class="field-label">ZIP code</label>
-              <input type="text" id="mpsZip" placeholder="e.g. 97219" maxlength="5" inputmode="numeric" oninput="onMpsZipChange()">
+              <input type="text" id="mpsZip" placeholder="e.g. 97219" maxlength="5" inputmode="numeric" oninput="syncZipFields('mpsZip')">
               <div id="mpsZipStatusRow" style="margin-top:6px;"></div>
             </div>
             <div class="field-group">
@@ -842,6 +842,8 @@ function selectZip(zip) {
   }
 
   zipInput.value = zip;
+  document.getElementById('mpsZip').value = zip;
+  onMpsZipChange();
   setStatus('', '');
   const entry = zipStatuses[zip];
   const label = statusLabel(zip);
@@ -868,9 +870,11 @@ zipInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkZipSta
 
 function clearZipLookup() {
   zipInput.value = '';
+  document.getElementById('mpsZip').value = '';
   setStatus('', '');
   zipStatusResult.innerHTML = '';
   clearHighlight();
+  onMpsZipChange();
 }
 document.getElementById('clearZipBtn').onclick = clearZipLookup;
 
@@ -1211,6 +1215,21 @@ function onLeadSourceChange() {
   refreshMpsTemplateSuggestion();
 }
 
+// The ZIP Lookup field and the Admin Assistant's ZIP field mirror each
+// other — type it once in either one and both stay in sync, so there's
+// only ever one ZIP code to type per lead. The map/"Check Status" flow
+// stays manual either way, so typing here never causes a surprise pan/zoom.
+function syncZipFields(source) {
+  const zipInputEl = document.getElementById('zipInput');
+  const mpsZipEl = document.getElementById('mpsZip');
+  if (source === 'zipInput') {
+    mpsZipEl.value = zipInputEl.value;
+  } else {
+    zipInputEl.value = mpsZipEl.value;
+  }
+  onMpsZipChange();
+}
+
 function onMpsZipChange() {
   const zip = document.getElementById('mpsZip').value.trim();
   const row = document.getElementById('mpsZipStatusRow');
@@ -1223,10 +1242,15 @@ function onMpsZipChange() {
   const existing = zipStatuses[zip];
   const defaultEntry = existing || { status: 'Outside Service Area', detail: 'Not in our documented service area.' };
 
+  // Hard Rule and Outside Service Area both get a full banner below (with
+  // the same detail text), so skip repeating it here — just the tag.
+  const hasRedundantBanner = defaultEntry.status === 'Hard Rule' || defaultEntry.status === 'Outside Service Area';
+  const detailHtml = hasRedundantBanner ? '' : `<div class="zip-detail" id="mpsZipDetail">${defaultEntry.detail || ''}</div>`;
+
   // Read-only — this ZIP's status comes from the Master SOP data, not a
   // per-lead choice, so there's no dropdown to retag it here.
   row.innerHTML = `<span class="zip-status-tag ${defaultEntry.status.replace(/ /g, '-')}" id="mpsZipStatusTag">${defaultEntry.status}</span>
-    <div class="zip-detail" id="mpsZipDetail">${defaultEntry.detail || ''}</div>`;
+    ${detailHtml}`;
 
   zipStatuses[zip] = defaultEntry;
   saveZipStatuses();
@@ -1730,6 +1754,7 @@ function refreshPsdwTemplateSuggestion() {
    -------------------------------------------------------------------------- */
 function clearMpsForm() {
   document.getElementById('mpsZip').value = '';
+  document.getElementById('zipInput').value = '';
   document.getElementById('mpsBreed').value = '';
   document.getElementById('mpsBreedPriceInfo').textContent = '';
   document.getElementById('mpsFromReferralSite').checked = false;
